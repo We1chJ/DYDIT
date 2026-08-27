@@ -18,6 +18,7 @@ async function requireUser() {
 export async function addTask(
   cadence: Cadence,
   title: string,
+  goalId: string | null = null,
 ): Promise<Result> {
   const trimmed = title.trim();
   if (!trimmed) return { error: "Give the task a name." };
@@ -32,6 +33,7 @@ export async function addTask(
     user_id: user.id,
     title: trimmed,
     cadence,
+    goal_id: goalId,
   });
 
   if (error) return { error: error.message };
@@ -90,6 +92,38 @@ export async function removeTask(taskId: string): Promise<Result> {
     .from("tasks")
     .update({ archived_at: new Date().toISOString() })
     .eq("id", taskId);
+
+  if (error) return { error: error.message };
+  revalidatePath("/");
+  return {};
+}
+
+export async function addGoal(title: string): Promise<Result> {
+  const trimmed = title.trim();
+  if (!trimmed) return { error: "Give the goal a name." };
+  if (trimmed.length > 200) return { error: "That goal name is too long." };
+
+  const { supabase, user } = await requireUser();
+  const { error } = await supabase
+    .from("goals")
+    .insert({ user_id: user.id, title: trimmed });
+
+  if (error) return { error: error.message };
+  revalidatePath("/");
+  return {};
+}
+
+/**
+ * Archives the goal. Its tasks stay exactly where they are and simply stop
+ * being linked to anything — removing a goal should never quietly delete the
+ * work that fed it.
+ */
+export async function removeGoal(goalId: string): Promise<Result> {
+  const { supabase } = await requireUser();
+  const { error } = await supabase
+    .from("goals")
+    .update({ archived_at: new Date().toISOString() })
+    .eq("id", goalId);
 
   if (error) return { error: error.message };
   revalidatePath("/");

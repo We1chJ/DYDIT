@@ -1,6 +1,6 @@
 import { notFound } from "next/navigation";
 import { Dashboard } from "@/components/dashboard";
-import type { Completion, Task } from "@/lib/types";
+import type { Completion, Goal, Task } from "@/lib/types";
 
 function seeded(n: number) {
   const x = Math.sin(n * 12.9898) * 43758.5453;
@@ -10,59 +10,92 @@ function seeded(n: number) {
 const start = new Date();
 start.setDate(start.getDate() - 200);
 
-const tasks: Task[] = [
-  ["Read 30 minutes", "daily"],
-  ["Workout", "daily"],
-  ["No screens after 10", "daily"],
-  ["Write morning pages", "daily"],
-  ["Deep clean the kitchen", "weekly"],
-  ["Review the week", "weekly"],
-  ["Groceries", "weekly"],
-  ["Ship DYDIT", "once"],
-  ["Read 24 books this year", "once"],
-  ["Book dentist", "once"],
-].map(([title, cadence], i) => ({
+const goals: Goal[] = [
+  ["g1", "Learn Japanese"],
+  ["g2", "Run a half marathon"],
+  ["g3", "Ship DYDIT"],
+].map(([id, title]) => ({
+  id,
+  title,
+  archived_at: null,
+  created_at: start.toISOString(),
+}));
+
+const tasks: Task[] = (
+  [
+    ["Anki, 20 cards", "daily", "g1"],
+    ["Read 30 minutes", "daily", null],
+    ["Easy run", "daily", "g2"],
+    ["No screens after 10", "daily", null],
+    ["Grammar lesson", "weekly", "g1"],
+    ["Long run", "weekly", "g2"],
+    ["Ship one feature", "weekly", "g3"],
+    ["Deep clean the kitchen", "weekly", null],
+  ] as const
+).map(([title, cadence, goal_id], i) => ({
   id: `t${i}`,
-  title: title as string,
-  cadence: cadence as Task["cadence"],
+  title,
+  cadence,
+  goal_id,
   archived_at: null,
   created_at: new Date(start.getTime() + i * 86400000).toISOString(),
 }));
 
+const dayKey = (d: Date) =>
+  `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
+
+/** ISO week key, matching lib/periods.ts. */
+function weekKey(d: Date) {
+  const t = new Date(d.getFullYear(), d.getMonth(), d.getDate());
+  t.setDate(t.getDate() - ((t.getDay() + 6) % 7) + 3);
+  const isoYear = t.getFullYear();
+  const firstThursday = new Date(isoYear, 0, 4);
+  firstThursday.setDate(
+    firstThursday.getDate() - ((firstThursday.getDay() + 6) % 7) + 3,
+  );
+  const week =
+    1 + Math.round((t.getTime() - firstThursday.getTime()) / (7 * 86400000));
+  return `${isoYear}-W${String(week).padStart(2, "0")}`;
+}
+
 const completions: Completion[] = [];
-const dailyTasks = tasks.filter((t) => t.cadence === "daily");
+const seenWeeks = new Set<string>();
+
 for (let d = 200; d >= 0; d--) {
   const date = new Date();
   date.setDate(date.getDate() - d);
-  const key = `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, "0")}-${String(date.getDate()).padStart(2, "0")}`;
-  dailyTasks.forEach((t, ti) => {
+  const dk = dayKey(date);
+  const wk = weekKey(date);
+
+  tasks.forEach((t, ti) => {
     if (new Date(t.created_at) > date) return;
-    if (seeded(d * 7 + ti) > 0.36) {
+
+    if (t.cadence === "daily") {
+      if (seeded(d * 7 + ti) > 0.36) {
+        completions.push({
+          id: `c${d}-${ti}`,
+          task_id: t.id,
+          period_key: dk,
+          completed_on: dk,
+        });
+      }
+      return;
+    }
+
+    // Weekly: at most one completion per ISO week per task.
+    const mark = `${t.id}:${wk}`;
+    if (seenWeeks.has(mark)) return;
+    if (seeded(d * 13 + ti) > 0.45) {
+      seenWeeks.add(mark);
       completions.push({
-        id: `c${d}-${ti}`,
+        id: `cw${d}-${ti}`,
         task_id: t.id,
-        period_key: key,
-        completed_on: key,
+        period_key: wk,
+        completed_on: dk,
       });
     }
   });
 }
-// A couple of non-daily ticks so the heatmap tooltip's "other" branch shows up.
-const nowWeek = new Date();
-const monday = new Date(nowWeek);
-monday.setDate(monday.getDate() - ((monday.getDay() + 6) % 7));
-const mondayKey = `${monday.getFullYear()}-${String(monday.getMonth() + 1).padStart(2, "0")}-${String(monday.getDate()).padStart(2, "0")}`;
-const thursday = new Date(monday.getFullYear(), 0, 4);
-thursday.setDate(thursday.getDate() - ((thursday.getDay() + 6) % 7) + 3);
-const week =
-  1 + Math.round((monday.getTime() + 3 * 86400000 - thursday.getTime()) / (7 * 86400000));
-completions.push({
-  id: "cw",
-  task_id: "t4",
-  period_key: `${monday.getFullYear()}-W${String(week).padStart(2, "0")}`,
-  completed_on: mondayKey,
-});
-completions.push({ id: "co", task_id: "t9", period_key: "once", completed_on: mondayKey });
 
 /*
  * Development-only design harness: the full dashboard driven by a year of
@@ -74,5 +107,12 @@ completions.push({ id: "co", task_id: "t9", period_key: "once", completed_on: mo
  */
 export default function PreviewPage() {
   if (process.env.NODE_ENV === "production") notFound();
-  return <Dashboard tasks={tasks} completions={completions} email="preview@local" />;
+  return (
+    <Dashboard
+      tasks={tasks}
+      completions={completions}
+      goals={goals}
+      email="preview@local"
+    />
+  );
 }

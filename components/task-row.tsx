@@ -10,6 +10,8 @@ type TaskRowProps = {
   pending?: boolean;
   /** Position in its section, used to stagger the entrance. */
   index?: number;
+  /** Title of the goal this feeds, if any. */
+  goalTitle?: string | null;
   onToggle: (next: boolean) => void;
   onRemove: () => void;
 };
@@ -19,6 +21,7 @@ export function TaskRow({
   done,
   pending = false,
   index = 0,
+  goalTitle = null,
   onToggle,
   onRemove,
 }: TaskRowProps) {
@@ -40,13 +43,18 @@ export function TaskRow({
         The drawn strikethrough lives on an inline inner span so the line is the
         width of the text, not of the flex column it sits in.
       */}
-      <span className="min-w-0 flex-1 truncate text-[14.5px]">
+      <span className="flex min-w-0 flex-1 items-baseline gap-2 truncate text-[14.5px]">
         <span
           data-done={done}
           className={`task-title ${done ? "text-faint" : "text-foreground"}`}
         >
           {title}
         </span>
+        {goalTitle ? (
+          <span className="shrink-0 truncate text-[11.5px] text-faint">
+            {goalTitle}
+          </span>
+        ) : null}
       </span>
 
       <button

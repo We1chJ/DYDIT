@@ -2,7 +2,7 @@ import { redirect } from "next/navigation";
 import { Dashboard } from "@/components/dashboard";
 import { supabaseEnvOrNull } from "@/lib/supabase/env";
 import { createClient } from "@/lib/supabase/server";
-import type { Completion, Task } from "@/lib/types";
+import type { Completion, Goal, Task } from "@/lib/types";
 
 // Always reflects the live rows; a cached dashboard would show stale checkboxes.
 export const dynamic = "force-dynamic";
@@ -28,19 +28,26 @@ export default async function Page() {
    * completions still belong in the history, so the charts need them to work
    * out what each day's denominator actually was.
    */
-  const [tasksRes, completionsRes] = await Promise.all([
+  const [tasksRes, completionsRes, goalsRes] = await Promise.all([
     supabase
       .from("tasks")
-      .select("id, title, cadence, archived_at, created_at")
+      .select("id, title, cadence, goal_id, archived_at, created_at")
       .order("created_at", { ascending: true }),
     supabase
       .from("completions")
       .select("id, task_id, period_key, completed_on")
       .gte("completed_on", since.toISOString().slice(0, 10)),
+    supabase
+      .from("goals")
+      .select("id, title, archived_at, created_at")
+      .order("created_at", { ascending: true }),
   ]);
 
-  if (tasksRes.error || completionsRes.error) {
-    const message = tasksRes.error?.message ?? completionsRes.error?.message;
+  if (tasksRes.error || completionsRes.error || goalsRes.error) {
+    const message =
+      tasksRes.error?.message ??
+      completionsRes.error?.message ??
+      goalsRes.error?.message;
     return (
       <main className="mx-auto max-w-md px-6 py-24">
         <h1 className="text-[17px] font-semibold">Couldn&rsquo;t load your list</h1>
@@ -57,6 +64,7 @@ export default async function Page() {
     <Dashboard
       tasks={(tasksRes.data ?? []) as Task[]}
       completions={(completionsRes.data ?? []) as Completion[]}
+      goals={(goalsRes.data ?? []) as Goal[]}
       email={user.email ?? ""}
     />
   );

@@ -7,8 +7,9 @@ import {
   useSyncExternalStore,
   useTransition,
 } from "react";
-import { addTask, removeTask, setDone } from "@/app/actions";
+import { addGoal, addTask, removeGoal, removeTask, setDone } from "@/app/actions";
 import { AddTask } from "@/components/add-task";
+import { GoalBars } from "@/components/goal-bars";
 import { Heatmap } from "@/components/heatmap";
 import { Logo } from "@/components/logo";
 import { StatStrip } from "@/components/stat-strip";
@@ -30,15 +31,18 @@ import {
   completionIndex,
   currentStreak,
   dailyStats,
+  goalProgress,
   inMonth,
   isDone,
   perfectDays,
 } from "@/lib/stats";
 import {
+  GOAL_WINDOW_DAYS,
   TABS,
   TAB_BY_CADENCE,
   type Cadence,
   type Completion,
+  type Goal,
   type Task,
 } from "@/lib/types";
 
@@ -59,6 +63,7 @@ function subscribeToClock(onChange: () => void) {
 type DashboardProps = {
   tasks: Task[];
   completions: Completion[];
+  goals: Goal[];
   email: string;
 };
 
@@ -84,7 +89,12 @@ function verdict(done: number, total: number) {
   return { title: "Almost.", sub: `${total - done} to go.` };
 }
 
-export function Dashboard({ tasks, completions, email }: DashboardProps) {
+export function Dashboard({
+  tasks,
+  completions,
+  goals,
+  email,
+}: DashboardProps) {
   /*
    * The current day is null until mount on purpose.
    *
@@ -120,6 +130,12 @@ export function Dashboard({ tasks, completions, email }: DashboardProps) {
     setSeenComps(completions);
     setLocalComps(completions);
   }
+  const [localGoals, setLocalGoals] = useState(goals);
+  const [seenGoals, setSeenGoals] = useState(goals);
+  if (seenGoals !== goals) {
+    setSeenGoals(goals);
+    setLocalGoals(goals);
+  }
 
   const [error, setError] = useState<string | null>(null);
   const [, startTransition] = useTransition();
@@ -137,6 +153,27 @@ export function Dashboard({ tasks, completions, email }: DashboardProps) {
     () => localTasks.filter((t) => !t.archived_at),
     [localTasks],
   );
+
+  const liveGoals = useMemo(
+    () => localGoals.filter((g) => !g.archived_at),
+    [localGoals],
+  );
+
+  const goalTitles = useMemo(
+    () => new Map(liveGoals.map((g) => [g.id, g.title])),
+    [liveGoals],
+  );
+
+  const goalRows = useMemo(() => {
+    if (!today) return [];
+    return goalProgress(
+      localGoals,
+      localTasks,
+      localComps,
+      today,
+      GOAL_WINDOW_DAYS,
+    );
+  }, [localGoals, localTasks, localComps, today]);
 
   const stats = useMemo(() => {
     if (!today || !todayKey) return null;
@@ -188,7 +225,7 @@ export function Dashboard({ tasks, completions, email }: DashboardProps) {
     });
   }
 
-  function handleAdd(cadence: Cadence, title: string) {
+  function handleAdd(cadence: Cadence, title: string, goalId: string | null) {
     if (!TAB_BY_CADENCE.has(cadence)) return;
     bumpChanges();
 
@@ -198,6 +235,7 @@ export function Dashboard({ tasks, completions, email }: DashboardProps) {
       id: `${OPTIMISTIC}${cadence}-${localTasks.length}-${title}`,
       title,
       cadence,
+      goal_id: goalId,
       archived_at: null,
       created_at: new Date().toISOString(),
     };
@@ -205,7 +243,7 @@ export function Dashboard({ tasks, completions, email }: DashboardProps) {
 
     startTransition(async () => {
       try {
-        const res = await addTask(cadence, title);
+        const res = await addTask(cadence, title, goalId);
         if (res.error) {
           setError(res.error);
           setLocalTasks((prev) => prev.filter((t) => t.id !== optimistic.id));
@@ -213,6 +251,45 @@ export function Dashboard({ tasks, completions, email }: DashboardProps) {
       } catch (e) {
         setError(e instanceof Error ? e.message : "Couldn't add that.");
         setLocalTasks((prev) => prev.filter((t) => t.id !== optimistic.id));
+      }
+    });
+  }
+
+  function handleAddGoal(title: string) {
+    bumpChanges();
+    const optimistic: Goal = {
+      id: `${OPTIMISTIC}goal-${localGoals.length}-${title}`,
+      title,
+      archived_at: null,
+      created_at: new Date().toISOString(),
+    };
+    setLocalGoals((prev) => [...prev, optimistic]);
+
+    startTransition(async () => {
+      try {
+        const res = await addGoal(title);
+        if (res.error) {
+          setError(res.error);
+          setLocalGoals((prev) => prev.filter((g) => g.id !== optimistic.id));
+        }
+      } catch (e) {
+        setError(e instanceof Error ? e.message : "Couldn't add that goal.");
+        setLocalGoals((prev) => prev.filter((g) => g.id !== optimistic.id));
+      }
+    });
+  }
+
+  function handleRemoveGoal(goalId: string) {
+    bumpChanges();
+    setLocalGoals((prev) => prev.filter((g) => g.id !== goalId));
+    if (goalId.startsWith(OPTIMISTIC)) return;
+
+    startTransition(async () => {
+      try {
+        const res = await removeGoal(goalId);
+        if (res.error) setError(res.error);
+      } catch (e) {
+        setError(e instanceof Error ? e.message : "Couldn't remove that goal.");
       }
     });
   }
@@ -366,7 +443,20 @@ export function Dashboard({ tasks, completions, email }: DashboardProps) {
         </div>
       </section>
 
-      <section className="mt-10">
+      <section className="mt-3">
+        {stats ? (
+          <GoalBars
+            progress={goalRows}
+            windowDays={GOAL_WINDOW_DAYS}
+            onAdd={handleAddGoal}
+            onRemove={handleRemoveGoal}
+          />
+        ) : (
+          <div className="h-[92px] animate-pulse rounded-lg border border-border bg-muted/40" />
+        )}
+      </section>
+
+      <section className="mt-8">
         {(() => {
           const lists = TABS.map((tab) => {
             const tasks = liveTasks.filter((t) => t.cadence === tab.cadence);
@@ -397,6 +487,7 @@ export function Dashboard({ tasks, completions, email }: DashboardProps) {
                     index={i}
                     title={task.title}
                     done={stats && key ? isDone(stats.index, task.id, key) : false}
+                    goalTitle={task.goal_id ? goalTitles.get(task.goal_id) : null}
                     pending={!today || task.id.startsWith(OPTIMISTIC)}
                     onToggle={(next) => handleToggle(task, next)}
                     onRemove={() => handleRemove(task)}
@@ -404,7 +495,8 @@ export function Dashboard({ tasks, completions, email }: DashboardProps) {
                 ))
               )}
               <AddTask
-                onAdd={(title) => handleAdd(tab.cadence, title)}
+                goals={liveGoals}
+                onAdd={(title, goalId) => handleAdd(tab.cadence, title, goalId)}
                 placeholder={`Add to ${tab.label.toLowerCase()}`}
               />
             </div>

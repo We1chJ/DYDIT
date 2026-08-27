@@ -1,9 +1,22 @@
-export type Cadence = "daily" | "weekly" | "once";
+export type Cadence = "daily" | "weekly";
+
+/**
+ * A long-term goal. Never checked off directly — its progress is derived from
+ * the daily and weekly tasks that point at it.
+ */
+export type Goal = {
+  id: string;
+  title: string;
+  archived_at: string | null;
+  created_at: string;
+};
 
 export type Task = {
   id: string;
   title: string;
   cadence: Cadence;
+  /** Optional edge to a Goal. Null means the task stands on its own. */
+  goal_id: string | null;
   archived_at: string | null;
   created_at: string;
 };
@@ -42,12 +55,9 @@ export const TABS: TabDef[] = [
     resets: "resets Monday",
     blurb: "Things that need doing once a week, whenever suits.",
   },
-  {
-    cadence: "once",
-    label: "Long-term",
-    resets: "no reset",
-    blurb: "One-off tasks and slow goals. Check it once and it stays done.",
-  },
 ];
 
 export const TAB_BY_CADENCE = new Map(TABS.map((t) => [t.cadence, t]));
+
+/** How far back a goal's progress bar looks. */
+export const GOAL_WINDOW_DAYS = 30;

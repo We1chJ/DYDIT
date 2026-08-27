@@ -15,10 +15,12 @@ Single page, Notion-quiet, light and dark. Built for one person.
 
 ## What it does
 
-- **Three lists as swipeable tabs** — Daily, Weekly, Long-term — one at a time.
-  Swipe, drag, arrow-key, or click a tab; the underline tracks the scroll.
+- **Two lists as swipeable tabs** — Daily and Weekly — one at a time. Swipe,
+  drag, arrow-key, or click a tab; the underline tracks the scroll.
 - **Checkboxes that reset on their own.** Daily at midnight, Weekly on Monday.
-  Long-term is one-off: check once, done.
+- **Long-term goals as progress bars.** A goal is never checked off. Link daily
+  and weekly tasks to it and the bar fills with your completion rate over the
+  last 30 days, so a goal you stop feeding visibly sags.
 - **A contribution heatmap** over the last 12 months, shaded by what share of
   that day's daily tasks you finished.
 - **Today's donut**, a 30-day completion trend, and a stat strip with your current
@@ -28,7 +30,12 @@ Single page, Notion-quiet, light and dark. Built for one person.
 ## Stack
 
 Next.js 16 (App Router) · React 19 · TypeScript · Tailwind v4 · shadcn/ui on Base
-UI · Recharts · Supabase (Postgres + Auth).
+UI · Supabase (Postgres + Auth).
+
+Charts are shadcn's `ChartContainer` / `ChartTooltip` / `ChartTooltipContent`
+over Recharts, with colours driven by `ChartConfig` so they follow the light and
+dark tokens with no JavaScript. The contribution heatmap is hand-built — shadcn
+ships no heatmap primitive — but shares the same tooltip styling.
 
 ---
 
@@ -116,9 +123,12 @@ anywhere. Both routes ship, so this is safe to do at any point — or not at all
 
 Two tables:
 
+**`goals`** are the long-term things. A goal is not itself checkable.
+
 **`tasks`** are the templates you edit. Each has a `cadence`, which is both how
-often it resets *and* which of the three tabs it appears in — a list is its reset
-rule, so there is no separate `section` column to keep in sync.
+often it resets *and* which of the two tabs it appears in — a list is its reset
+rule, so there is no separate `section` column to keep in sync. Each task also
+has an optional `goal_id`, the edge that makes it count toward a goal.
 
 **`completions`** is an append-only log. Each row says *this task was completed
 for this period*:
@@ -127,14 +137,26 @@ for this period*:
 | --- | --- | --- |
 | daily | Daily | `2026-08-26` |
 | weekly | Weekly | `2026-W35` (ISO week) |
-| once | Long-term | `once` |
 
 A unique index on `(task_id, period_key)` is the whole mechanism. Yesterday's
 tick is stored under yesterday's key, so it can't satisfy today — which is what
 makes the checkbox appear to reset, without any scheduled job.
 
 Unchecking deletes the row. Removing a task **archives** it rather than deleting
-it, so last month's perfect days stay perfect.
+it, so last month's perfect days stay perfect. Removing a goal archives it too
+and simply unlinks its tasks — it never takes the work with it.
+
+### What a goal's progress bar measures
+
+The share of its linked tasks' *opportunities* that were met over the last 30
+days. Each daily task contributes one opportunity per day it existed; each weekly
+task one per ISO week. Counting opportunities rather than raw completions stops a
+daily task from drowning out a weekly one just by coming round seven times as
+often.
+
+It is a rate over a window, not a running total, so a goal you stopped feeding
+falls back instead of coasting on old work. The line underneath the bar says
+what's due right now, so the bar reads at both timescales.
 
 ### Everything is computed in local time
 
@@ -182,7 +204,7 @@ lib/
   periods.ts          local-time period keys, ISO weeks
   stats.ts            heatmap buckets, streaks, averages — all pure
   supabase/           browser, server, and proxy clients
-components/           dashboard, charts, tabs, task rows
+components/           dashboard, charts, tabs, goal bars, task rows
 supabase/schema.sql   tables, indexes, RLS
 scripts/stats.test.ts fixture check for the date and streak math
 ```

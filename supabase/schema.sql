@@ -2,9 +2,24 @@
 -- Safe to re-run: everything is guarded.
 --
 -- NOTE: `create table if not exists` will NOT alter a table that already
--- exists.  If you ran an earlier version of this file (the one with a `section`
--- column), drop both tables first and re-run:
---     drop table if exists public.completions, public.tasks;
+-- exists.  If you ran an earlier version of this file, drop the tables first
+-- and re-run:
+--     drop table if exists public.completions, public.tasks, public.goals;
+
+-- ---------------------------------------------------------------------------
+-- goals — the long-term things daily and weekly tasks feed into
+--
+-- A goal is not itself checkable.  Its progress is derived entirely from the
+-- tasks that point at it, so "Learn Japanese" advances because you did the Anki
+-- reps, not because anyone ticked the goal.
+-- ---------------------------------------------------------------------------
+create table if not exists public.goals (
+  id          uuid primary key default gen_random_uuid(),
+  user_id     uuid not null references auth.users on delete cascade,
+  title       text not null check (length(trim(title)) between 1 and 200),
+  archived_at timestamptz,
+  created_at  timestamptz not null default now()
+);
 
 -- ---------------------------------------------------------------------------
 -- tasks — the templates you edit
@@ -13,8 +28,11 @@ create table if not exists public.tasks (
   id          uuid primary key default gen_random_uuid(),
   user_id     uuid not null references auth.users on delete cascade,
   title       text not null check (length(trim(title)) between 1 and 500),
-  -- Cadence is also the list a task appears in: Daily, Weekly, Long-term.
-  cadence     text not null check (cadence in ('daily','weekly','once')),
+  -- Cadence is also the list a task appears in: Daily or Weekly.
+  cadence     text not null check (cadence in ('daily','weekly')),
+  -- Optional edge to a long-term goal.  Nulled rather than cascaded, so
+  -- dropping a goal never takes its tasks (or their history) with it.
+  goal_id     uuid references public.goals on delete set null,
   archived_at timestamptz,
   created_at  timestamptz not null default now()
 );
@@ -23,8 +41,7 @@ create table if not exists public.tasks (
 -- completions — the append-only log every chart reads from
 --
 -- period_key is what makes recurrence work.  A daily task's key is the calendar
--- day ('2026-08-26'), a weekly task's is the ISO week ('2026-W35'), and a
--- long-term task's is the literal 'once'.
+-- day ('2026-08-26') and a weekly task's is the ISO week ('2026-W35').
 -- Paired with the unique index below, that means a task can be completed at
 -- most once per period, and yesterday's tick never satisfies today.
 --
@@ -43,6 +60,8 @@ create table if not exists public.completions (
 
 create index if not exists tasks_user_cadence_idx
   on public.tasks (user_id, cadence, created_at);
+create index if not exists tasks_goal_idx
+  on public.tasks (goal_id);
 create index if not exists completions_user_day_idx
   on public.completions (user_id, completed_on);
 
@@ -51,8 +70,15 @@ create index if not exists completions_user_day_idx
 -- Without these policies an authenticated user could read every row in the
 -- table, so they are not optional even for a single-user app.
 -- ---------------------------------------------------------------------------
+alter table public.goals       enable row level security;
 alter table public.tasks       enable row level security;
 alter table public.completions enable row level security;
+
+drop policy if exists "own goals" on public.goals;
+create policy "own goals" on public.goals
+  for all
+  using (auth.uid() = user_id)
+  with check (auth.uid() = user_id);
 
 drop policy if exists "own tasks" on public.tasks;
 create policy "own tasks" on public.tasks

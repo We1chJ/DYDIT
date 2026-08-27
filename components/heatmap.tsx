@@ -150,17 +150,26 @@ export function Heatmap({ days, todayKey, weeks }: HeatmapProps) {
       <div className="pointer-events-none absolute inset-0">
         {hover ? (
           <div
-            className="anim-tip absolute z-20 -translate-x-1/2 -translate-y-full whitespace-nowrap rounded-md border border-border bg-popover px-2 py-1 text-[11.5px] text-popover-foreground shadow-md"
+            className="anim-tip absolute z-20 grid -translate-x-1/2 -translate-y-full gap-1.5 whitespace-nowrap rounded-lg border border-border/50 bg-background px-2.5 py-1.5 text-xs shadow-xl"
             style={{ left: hover.x, top: hover.y - 6 }}
           >
-            <span className="font-medium">{formatDayShort(hover.stat.dayKey)}</span>
-            <span className="text-muted-foreground">
-              {" — "}
-              {hover.stat.total === 0
-                ? "no daily tasks"
-                : `${hover.stat.done}/${hover.stat.total} daily`}
-              {hover.stat.otherDone > 0 ? ` · ${hover.stat.otherDone} other` : ""}
-            </span>
+            <div className="font-medium">
+              {formatDayShort(hover.stat.dayKey)}
+            </div>
+            <div className="flex items-center gap-2">
+              <div
+                className="size-2.5 shrink-0 rounded-[2px]"
+                style={{ backgroundColor: `var(--hm-${hover.stat.level})` }}
+              />
+              <span className="text-muted-foreground">
+                {hover.stat.total === 0
+                  ? "no daily tasks"
+                  : `${hover.stat.done} of ${hover.stat.total} daily`}
+                {hover.stat.otherDone > 0
+                  ? ` · ${hover.stat.otherDone} other`
+                  : ""}
+              </span>
+            </div>
           </div>
         ) : null}
       </div>

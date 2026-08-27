@@ -1,5 +1,5 @@
-import { addDays, daysBetween, fromDayKey, toDayKey } from "./periods";
-import type { Completion, Task } from "./types";
+import { addDays, daysBetween, fromDayKey, isoWeekKey, periodKey, toDayKey } from "./periods";
+import type { Completion, Goal, Task } from "./types";
 
 /*
  * Everything the charts show is derived here, from raw rows, with no database
@@ -158,4 +158,94 @@ export function inMonth(days: DayStat[], month: string): DayStat[] {
 /** Number of days at 100% — the "perfect days" stat. */
 export function perfectDays(days: DayStat[]): number {
   return days.filter((d) => d.ratio === 1).length;
+}
+
+/* ------------------------------------------------------------------------- */
+/* Long-term goals                                                            */
+/* ------------------------------------------------------------------------- */
+
+export type GoalProgress = {
+  goal: Goal;
+  /** Completion rate over the window, or null if nothing was ever due. */
+  rate: number | null;
+  /** Linked tasks due right now (today for daily, this week for weekly). */
+  dueTotal: number;
+  dueDone: number;
+  /** How many live tasks point at this goal. */
+  linked: number;
+};
+
+/**
+ * Progress for every goal, derived entirely from the tasks pointing at it.
+ *
+ * The bar is a completion *rate* over a rolling window rather than a running
+ * total: a goal you stopped feeding a month ago should visibly fall back, which
+ * an ever-growing count could never show. Daily and weekly tasks contribute on
+ * the same footing — each counts once per period it was actually due, so one
+ * daily task doesn't drown out a weekly one just by coming round more often.
+ */
+export function goalProgress(
+  goals: Goal[],
+  tasks: Task[],
+  completions: Completion[],
+  today: Date,
+  windowDays: number,
+): GoalProgress[] {
+  const index = completionIndex(completions);
+  const todayKey = toDayKey(today);
+
+  // The days in the window, newest first, plus the week each one belongs to.
+  const days: { dayKey: string; weekKey: string }[] = [];
+  const weekRepresentative = new Map<string, string>();
+  for (let i = 0; i < windowDays; i++) {
+    const date = addDays(today, -i);
+    const dayKey = toDayKey(date);
+    const weekKey = isoWeekKey(date);
+    days.push({ dayKey, weekKey });
+    // The newest day seen for a week decides whether that week counted at all.
+    if (!weekRepresentative.has(weekKey)) weekRepresentative.set(weekKey, dayKey);
+  }
+
+  return goals
+    .filter((g) => !g.archived_at)
+    .map((goal) => {
+      const linked = tasks.filter(
+        (t) => t.goal_id === goal.id && !t.archived_at,
+      );
+
+      let opportunities = 0;
+      let met = 0;
+
+      for (const task of linked) {
+        if (task.cadence === "daily") {
+          for (const { dayKey } of days) {
+            if (!activeOn(task, dayKey)) continue;
+            opportunities++;
+            if (isDone(index, task.id, dayKey)) met++;
+          }
+        } else {
+          for (const [weekKey, dayKey] of weekRepresentative) {
+            if (!activeOn(task, dayKey)) continue;
+            opportunities++;
+            if (isDone(index, task.id, weekKey)) met++;
+          }
+        }
+      }
+
+      let dueTotal = 0;
+      let dueDone = 0;
+      for (const task of linked) {
+        if (!activeOn(task, todayKey)) continue;
+        dueTotal++;
+        if (isDone(index, task.id, periodKey(task.cadence, today))) dueDone++;
+      }
+
+      return {
+        goal,
+        rate: opportunities === 0 ? null : met / opportunities,
+        dueTotal,
+        dueDone,
+        linked: linked.length,
+      };
+    });
 }

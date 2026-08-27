@@ -1,8 +1,8 @@
 import { isoWeekKey, periodKey, toDayKey, fromDayKey } from "../lib/periods";
 import {
-  activeOn, averageRatio, currentStreak, dailyStats, longestStreak, perfectDays,
+  activeOn, averageRatio, currentStreak, dailyStats, goalProgress, longestStreak, perfectDays,
 } from "../lib/stats";
-import type { Completion, Task } from "../lib/types";
+import type { Completion, Goal, Task } from "../lib/types";
 
 let failures = 0;
 function eq(label: string, actual: unknown, expected: unknown) {
@@ -12,9 +12,9 @@ function eq(label: string, actual: unknown, expected: unknown) {
   console.log(`${ok ? "  ok  " : "  FAIL"}  ${label}${ok ? "" : `\n         expected ${e}\n         actual   ${a}`}`);
 }
 
-const task = (id: string, cadence: Task["cadence"], created: string): Task => ({
-  id, title: id, cadence, archived_at: null, created_at: created,
-});
+const task = (
+  id: string, cadence: Task["cadence"], created: string, goal_id: string | null = null,
+): Task => ({ id, title: id, cadence, goal_id, archived_at: null, created_at: created });
 const comp = (task_id: string, period_key: string, completed_on: string): Completion =>
   ({ id: `${task_id}-${period_key}`, task_id, period_key, completed_on });
 
@@ -32,7 +32,6 @@ console.log("\nperiod keys");
 const d = new Date(2026, 7, 11);
 eq("daily", periodKey("daily", d), "2026-08-11");
 eq("weekly", periodKey("weekly", d), "2026-W33");
-eq("once", periodKey("once", d), "once");
 eq("day key is local, not UTC", toDayKey(new Date(2026, 0, 1, 23, 30)), "2026-01-01");
 eq("day key round-trips", toDayKey(fromDayKey("2026-03-09")), "2026-03-09");
 
@@ -85,6 +84,50 @@ eq("today unfinished -> streak still 2", currentStreak(openToday, "2026-08-13"),
 const noneYet = dailyStats(tasks, completions, "2026-07-28", "2026-07-30");
 eq("pre-history ratio is null", noneYet.map((x) => x.ratio), [null, null, null]);
 eq("pre-history excluded from average", averageRatio(noneYet), null);
+
+
+// --- Long-term goals ---------------------------------------------------------
+// "today" = Aug 12 2026 (a Wednesday). A 7-day window covers Aug 6-12, which
+// spans ISO weeks W32 (Aug 6-9) and W33 (Aug 10-12).
+console.log("");
+console.log("goalProgress  (7-day window ending Aug 12)");
+const goal = (id: string, title: string): Goal =>
+  ({ id, title, archived_at: null, created_at: "2026-07-01T09:00:00" });
+
+const goals = [goal("g1", "Learn Japanese"), goal("g2", "Untouched")];
+const gTasks = [
+  task("anki", "daily", "2026-08-01T09:00:00", "g1"),
+  task("lesson", "weekly", "2026-08-01T09:00:00", "g1"),
+  task("unlinked", "daily", "2026-08-01T09:00:00", null),
+];
+const gComps = [
+  // 3 of the 7 daily opportunities met.
+  comp("anki", "2026-08-12", "2026-08-12"),
+  comp("anki", "2026-08-11", "2026-08-11"),
+  comp("anki", "2026-08-10", "2026-08-10"),
+  // 1 of the 2 weekly opportunities met (W33 done, W32 not).
+  comp("lesson", "2026-W33", "2026-08-10"),
+  // Belongs to no goal - must not count toward g1.
+  comp("unlinked", "2026-08-12", "2026-08-12"),
+];
+const gp = goalProgress(goals, gTasks, gComps, new Date(2026, 7, 12), 7);
+
+eq("one entry per live goal", gp.length, 2);
+eq("g1: 7 daily + 2 weekly opportunities, 4 met", gp[0].rate, 4 / 9);
+eq("g1 due now = today's daily + this week's weekly", [gp[0].dueDone, gp[0].dueTotal], [2, 2]);
+eq("g1 linked count excludes the unlinked task", gp[0].linked, 2);
+eq("goal with no tasks has null rate", gp[1].rate, null);
+eq("goal with no tasks is not due", [gp[1].dueDone, gp[1].dueTotal], [0, 0]);
+
+const archived = goalProgress(
+  [{ ...goals[0], archived_at: "2026-08-01T09:00:00" }], gTasks, gComps,
+  new Date(2026, 7, 12), 7);
+eq("archived goals are dropped", archived.length, 0);
+
+// A task created mid-window only contributes from its creation day.
+const lateGp = goalProgress([goals[0]], [task("late", "daily", "2026-08-10T09:00:00", "g1")],
+  [comp("late", "2026-08-12", "2026-08-12")], new Date(2026, 7, 12), 7);
+eq("a task added mid-window counts only from its creation day", lateGp[0].rate, 1 / 3);
 
 console.log(`\n${failures === 0 ? "PASS — all assertions held" : `FAIL — ${failures} assertion(s) failed`}`);
 process.exit(failures === 0 ? 0 : 1);

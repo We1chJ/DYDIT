@@ -66,8 +66,7 @@ export function monthKey(d: Date): string {
 /**
  * The key a completion is stored under. This is what makes recurrence work:
  * combined with a unique index on (task_id, period_key), a daily task can be
- * completed once per day, a weekly one once per ISO week, and a one-off once
- * ever.
+ * completed once per day and a weekly one once per ISO week.
  */
 export function periodKey(cadence: Cadence, d: Date): string {
   switch (cadence) {
@@ -75,8 +74,6 @@ export function periodKey(cadence: Cadence, d: Date): string {
       return toDayKey(d);
     case "weekly":
       return isoWeekKey(d);
-    case "once":
-      return "once";
   }
 }
 
