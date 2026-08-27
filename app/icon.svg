@@ -1,0 +1,8 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" width="24" height="24">
+  <title>DYDIT</title>
+  <!-- Box with its top-right corner left open, so the check sweeps out through the gap. -->
+  <path d="M16 6 H7.5 A4.5 4.5 0 0 0 3 10.5 V16.5 A4.5 4.5 0 0 0 7.5 21 H13.5 A4.5 4.5 0 0 0 18 16.5 V12"
+        fill="none" stroke="#2DA44E" stroke-opacity="0.4" stroke-width="2" stroke-linecap="round"/>
+  <path d="M7.6 13.2 L11.3 17 L20.8 4.6"
+        fill="none" stroke="#2DA44E" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"/>
+</svg>
