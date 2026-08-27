@@ -31,7 +31,7 @@ export default async function Page() {
   const [tasksRes, completionsRes] = await Promise.all([
     supabase
       .from("tasks")
-      .select("id, title, section, cadence, archived_at, created_at")
+      .select("id, title, cadence, archived_at, created_at")
       .order("created_at", { ascending: true }),
     supabase
       .from("completions")

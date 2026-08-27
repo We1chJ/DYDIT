@@ -58,7 +58,7 @@ export function isoWeekKey(d: Date): string {
   return `${isoYear}-W${String(week).padStart(2, "0")}`;
 }
 
-/** Local month key, e.g. 2026-08. */
+/** Local month key, e.g. 2026-08. Used for the monthly stats, not for keys. */
 export function monthKey(d: Date): string {
   return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}`;
 }
@@ -75,8 +75,6 @@ export function periodKey(cadence: Cadence, d: Date): string {
       return toDayKey(d);
     case "weekly":
       return isoWeekKey(d);
-    case "monthly":
-      return monthKey(d);
     case "once":
       return "once";
   }

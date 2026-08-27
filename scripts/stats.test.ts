@@ -13,8 +13,7 @@ function eq(label: string, actual: unknown, expected: unknown) {
 }
 
 const task = (id: string, cadence: Task["cadence"], created: string): Task => ({
-  id, title: id, section: cadence === "daily" ? "daily" : "weekly",
-  cadence, archived_at: null, created_at: created,
+  id, title: id, cadence, archived_at: null, created_at: created,
 });
 const comp = (task_id: string, period_key: string, completed_on: string): Completion =>
   ({ id: `${task_id}-${period_key}`, task_id, period_key, completed_on });
@@ -33,7 +32,6 @@ console.log("\nperiod keys");
 const d = new Date(2026, 7, 11);
 eq("daily", periodKey("daily", d), "2026-08-11");
 eq("weekly", periodKey("weekly", d), "2026-W33");
-eq("monthly", periodKey("monthly", d), "2026-08");
 eq("once", periodKey("once", d), "once");
 eq("day key is local, not UTC", toDayKey(new Date(2026, 0, 1, 23, 30)), "2026-01-01");
 eq("day key round-trips", toDayKey(fromDayKey("2026-03-09")), "2026-03-09");

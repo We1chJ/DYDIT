@@ -36,7 +36,11 @@ export default function RootLayout({ children }: LayoutProps<"/">) {
       <head>
         <script dangerouslySetInnerHTML={{ __html: themeScript }} />
       </head>
-      <body className="flex min-h-full flex-col">
+      {/*
+        Browser extensions commonly inject attributes onto <body> before React
+        hydrates (cz-shortcut-listen, grammarly, …), which reads as a mismatch.
+      */}
+      <body className="flex min-h-full flex-col" suppressHydrationWarning>
         <TooltipProvider>{children}</TooltipProvider>
       </body>
     </html>

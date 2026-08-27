@@ -1,16 +1,8 @@
-export type Cadence = "daily" | "weekly" | "monthly" | "once";
-
-export type SectionId =
-  | "daily"
-  | "weekly"
-  | "monthly"
-  | "spontaneous"
-  | "longterm";
+export type Cadence = "daily" | "weekly" | "once";
 
 export type Task = {
   id: string;
   title: string;
-  section: SectionId;
   cadence: Cadence;
   archived_at: string | null;
   created_at: string;
@@ -24,50 +16,38 @@ export type Completion = {
   completed_on: string;
 };
 
-export type SectionDef = {
-  id: SectionId;
-  label: string;
+export type TabDef = {
   cadence: Cadence;
-  /** Shown in the empty state — says what this section is for, in one line. */
+  label: string;
+  /** Sits under the tab label — says when this list wipes itself. */
+  resets: string;
+  /** Shown when the list is empty. */
   blurb: string;
 };
 
 /*
- * `cadence` is separate from `section` because Spontaneous and Long-term goals
- * are both one-off but are different lists. Section drives grouping; cadence
- * drives when the checkbox resets.
+ * One tab per cadence. There is no separate "section" concept: a list *is* its
+ * reset rule, so the two would only ever have to be kept in sync.
  */
-export const SECTIONS: SectionDef[] = [
+export const TABS: TabDef[] = [
   {
-    id: "daily",
-    label: "Daily",
     cadence: "daily",
-    blurb: "Resets every night. These are the ones the heatmap counts.",
+    label: "Daily",
+    resets: "resets nightly",
+    blurb: "The everyday ones. These are what the charts above count.",
   },
   {
-    id: "weekly",
-    label: "Weekly",
     cadence: "weekly",
-    blurb: "Resets Monday morning.",
+    label: "Weekly",
+    resets: "resets Monday",
+    blurb: "Things that need doing once a week, whenever suits.",
   },
   {
-    id: "monthly",
-    label: "Monthly",
-    cadence: "monthly",
-    blurb: "Resets on the 1st.",
-  },
-  {
-    id: "spontaneous",
-    label: "Spontaneous",
     cadence: "once",
-    blurb: "One-off things. Check it once and it's done.",
-  },
-  {
-    id: "longterm",
-    label: "Long-term goals",
-    cadence: "once",
-    blurb: "The slow ones. No reset, no pressure.",
+    label: "Long-term",
+    resets: "no reset",
+    blurb: "One-off tasks and slow goals. Check it once and it stays done.",
   },
 ];
 
-export const SECTION_BY_ID = new Map(SECTIONS.map((s) => [s.id, s]));
+export const TAB_BY_CADENCE = new Map(TABS.map((t) => [t.cadence, t]));

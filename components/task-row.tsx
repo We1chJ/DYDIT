@@ -36,13 +36,17 @@ export function TaskRow({
         className="shrink-0"
       />
 
-      <span
-        data-done={done}
-        className={`task-title min-w-0 flex-1 truncate text-[14.5px] ${
-          done ? "text-faint" : "text-foreground"
-        }`}
-      >
-        {title}
+      {/*
+        The drawn strikethrough lives on an inline inner span so the line is the
+        width of the text, not of the flex column it sits in.
+      */}
+      <span className="min-w-0 flex-1 truncate text-[14.5px]">
+        <span
+          data-done={done}
+          className={`task-title ${done ? "text-faint" : "text-foreground"}`}
+        >
+          {title}
+        </span>
       </span>
 
       <button

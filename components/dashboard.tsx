@@ -13,7 +13,7 @@ import { Heatmap } from "@/components/heatmap";
 import { Logo } from "@/components/logo";
 import { StatStrip } from "@/components/stat-strip";
 import { TaskRow } from "@/components/task-row";
-import { TaskSection } from "@/components/task-section";
+import { TaskTabs, type TabMeta } from "@/components/task-tabs";
 import { ThemeToggle } from "@/components/theme-toggle";
 import { TodayDonut } from "@/components/today-donut";
 import { TrendChart } from "@/components/trend-chart";
@@ -25,7 +25,6 @@ import {
   periodKey,
   toDayKey,
 } from "@/lib/periods";
-import { useStoredJson } from "@/lib/use-stored-json";
 import {
   averageRatio,
   completionIndex,
@@ -36,18 +35,16 @@ import {
   perfectDays,
 } from "@/lib/stats";
 import {
-  SECTIONS,
-  SECTION_BY_ID,
+  TABS,
+  TAB_BY_CADENCE,
+  type Cadence,
   type Completion,
-  type SectionId,
   type Task,
 } from "@/lib/types";
 
 const HEATMAP_WEEKS = 52;
 const TREND_DAYS = 30;
-const COLLAPSE_KEY = "dydit-collapsed";
 const OPTIMISTIC = "optimistic-";
-const NO_COLLAPSE: Record<string, boolean> = {};
 
 /*
  * The clock is an external store. Polling it through useSyncExternalStore keeps
@@ -136,18 +133,6 @@ export function Dashboard({ tasks, completions, email }: DashboardProps) {
   const [changes, setChanges] = useState(0);
   const bumpChanges = useCallback(() => setChanges((n) => n + 1), []);
 
-  const [collapsed, setCollapsed] = useStoredJson<Record<string, boolean>>(
-    COLLAPSE_KEY,
-    NO_COLLAPSE,
-  );
-
-  const setSectionOpen = useCallback(
-    (id: SectionId, open: boolean) => {
-      setCollapsed({ ...collapsed, [id]: !open });
-    },
-    [collapsed, setCollapsed],
-  );
-
   const liveTasks = useMemo(
     () => localTasks.filter((t) => !t.archived_at),
     [localTasks],
@@ -203,18 +188,16 @@ export function Dashboard({ tasks, completions, email }: DashboardProps) {
     });
   }
 
-  function handleAdd(section: SectionId, title: string) {
-    const def = SECTION_BY_ID.get(section);
-    if (!def) return;
+  function handleAdd(cadence: Cadence, title: string) {
+    if (!TAB_BY_CADENCE.has(cadence)) return;
     bumpChanges();
 
     // Shown immediately under a temporary id; its checkbox stays disabled until
     // the real row arrives, since a completion needs a real task id.
     const optimistic: Task = {
-      id: `${OPTIMISTIC}${section}-${localTasks.length}-${title}`,
+      id: `${OPTIMISTIC}${cadence}-${localTasks.length}-${title}`,
       title,
-      section,
-      cadence: def.cadence,
+      cadence,
       archived_at: null,
       created_at: new Date().toISOString(),
     };
@@ -222,7 +205,7 @@ export function Dashboard({ tasks, completions, email }: DashboardProps) {
 
     startTransition(async () => {
       try {
-        const res = await addTask(section, title);
+        const res = await addTask(cadence, title);
         if (res.error) {
           setError(res.error);
           setLocalTasks((prev) => prev.filter((t) => t.id !== optimistic.id));
@@ -384,29 +367,31 @@ export function Dashboard({ tasks, completions, email }: DashboardProps) {
       </section>
 
       <section className="mt-10">
-        {SECTIONS.map((section) => {
-          const sectionTasks = liveTasks.filter((t) => t.section === section.id);
-          const key = today ? periodKey(section.cadence, today) : null;
-          const doneCount =
-            stats && key
-              ? sectionTasks.filter((t) => isDone(stats.index, t.id, key)).length
-              : 0;
+        {(() => {
+          const lists = TABS.map((tab) => {
+            const tasks = liveTasks.filter((t) => t.cadence === tab.cadence);
+            const key = today ? periodKey(tab.cadence, today) : null;
+            const done =
+              stats && key
+                ? tasks.filter((t) => isDone(stats.index, t.id, key)).length
+                : 0;
+            return { tab, tasks, key, done };
+          });
 
-          return (
-            <TaskSection
-              key={section.id}
-              label={section.label}
-              done={doneCount}
-              total={sectionTasks.length}
-              open={!collapsed[section.id]}
-              onOpenChange={(open) => setSectionOpen(section.id, open)}
-            >
-              {sectionTasks.length === 0 ? (
-                <p className="px-2 py-1 text-[13px] text-faint">
-                  {section.blurb}
-                </p>
+          const meta: TabMeta[] = lists.map(({ tab, tasks, done }) => ({
+            key: tab.cadence,
+            label: tab.label,
+            resets: tab.resets,
+            done,
+            total: tasks.length,
+          }));
+
+          const panels = lists.map(({ tab, tasks, key }) => (
+            <div key={tab.cadence} className="px-1">
+              {tasks.length === 0 ? (
+                <p className="px-2 py-2 text-[13px] text-faint">{tab.blurb}</p>
               ) : (
-                sectionTasks.map((task, i) => (
+                tasks.map((task, i) => (
                   <TaskRow
                     key={task.id}
                     index={i}
@@ -419,12 +404,14 @@ export function Dashboard({ tasks, completions, email }: DashboardProps) {
                 ))
               )}
               <AddTask
-                onAdd={(title) => handleAdd(section.id, title)}
-                placeholder={`Add to ${section.label.toLowerCase()}`}
+                onAdd={(title) => handleAdd(tab.cadence, title)}
+                placeholder={`Add to ${tab.label.toLowerCase()}`}
               />
-            </TaskSection>
-          );
-        })}
+            </div>
+          ));
+
+          return <TaskTabs tabs={meta} panels={panels} />;
+        })()}
       </section>
     </div>
   );

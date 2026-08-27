@@ -2,7 +2,7 @@
 
 import { revalidatePath } from "next/cache";
 import { createClient } from "@/lib/supabase/server";
-import { SECTION_BY_ID, type SectionId } from "@/lib/types";
+import { TAB_BY_CADENCE, type Cadence } from "@/lib/types";
 
 type Result = { error?: string };
 
@@ -16,24 +16,22 @@ async function requireUser() {
 }
 
 export async function addTask(
-  section: SectionId,
+  cadence: Cadence,
   title: string,
 ): Promise<Result> {
   const trimmed = title.trim();
   if (!trimmed) return { error: "Give the task a name." };
   if (trimmed.length > 500) return { error: "That title is too long." };
 
-  const def = SECTION_BY_ID.get(section);
-  if (!def) return { error: "Unknown section." };
+  // Checked against the known tabs so an arbitrary string can't reach the
+  // insert and trip the CHECK constraint.
+  if (!TAB_BY_CADENCE.has(cadence)) return { error: "Unknown list." };
 
   const { supabase, user } = await requireUser();
   const { error } = await supabase.from("tasks").insert({
     user_id: user.id,
     title: trimmed,
-    section,
-    // Cadence comes from the section definition, never from the client, so a
-    // task can't end up in Daily while resetting monthly.
-    cadence: def.cadence,
+    cadence,
   });
 
   if (error) return { error: error.message };

@@ -17,19 +17,14 @@ const tasks: Task[] = [
   ["Write morning pages", "daily"],
   ["Deep clean the kitchen", "weekly"],
   ["Review the week", "weekly"],
-  ["Pay rent", "monthly"],
-  ["Back up the laptop", "monthly"],
-  ["Fix the bike light", "spontaneous"],
-  ["Book dentist", "spontaneous"],
-  ["Ship DYDIT", "longterm"],
-  ["Read 24 books this year", "longterm"],
-].map(([title, section], i) => ({
+  ["Groceries", "weekly"],
+  ["Ship DYDIT", "once"],
+  ["Read 24 books this year", "once"],
+  ["Book dentist", "once"],
+].map(([title, cadence], i) => ({
   id: `t${i}`,
   title: title as string,
-  section: section as Task["section"],
-  cadence: (section === "spontaneous" || section === "longterm"
-    ? "once"
-    : section) as Task["cadence"],
+  cadence: cadence as Task["cadence"],
   archived_at: null,
   created_at: new Date(start.getTime() + i * 86400000).toISOString(),
 }));
@@ -52,9 +47,22 @@ for (let d = 200; d >= 0; d--) {
     }
   });
 }
-// A couple of non-daily ticks so the tooltip's "other" branch shows up.
-completions.push({ id: "cw", task_id: "t4", period_key: "2026-W35", completed_on: "2026-08-25" });
-completions.push({ id: "co", task_id: "t8", period_key: "once", completed_on: "2026-08-20" });
+// A couple of non-daily ticks so the heatmap tooltip's "other" branch shows up.
+const nowWeek = new Date();
+const monday = new Date(nowWeek);
+monday.setDate(monday.getDate() - ((monday.getDay() + 6) % 7));
+const mondayKey = `${monday.getFullYear()}-${String(monday.getMonth() + 1).padStart(2, "0")}-${String(monday.getDate()).padStart(2, "0")}`;
+const thursday = new Date(monday.getFullYear(), 0, 4);
+thursday.setDate(thursday.getDate() - ((thursday.getDay() + 6) % 7) + 3);
+const week =
+  1 + Math.round((monday.getTime() + 3 * 86400000 - thursday.getTime()) / (7 * 86400000));
+completions.push({
+  id: "cw",
+  task_id: "t4",
+  period_key: `${monday.getFullYear()}-W${String(week).padStart(2, "0")}`,
+  completed_on: mondayKey,
+});
+completions.push({ id: "co", task_id: "t9", period_key: "once", completed_on: mondayKey });
 
 /*
  * Development-only design harness: the full dashboard driven by a year of

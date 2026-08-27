@@ -15,10 +15,10 @@ Single page, Notion-quiet, light and dark. Built for one person.
 
 ## What it does
 
-- **Five sections** — Daily, Weekly, Monthly, Spontaneous, Long-term goals — that
-  collapse and remember their state.
-- **Checkboxes that reset on their own.** Daily at midnight, Weekly on Monday,
-  Monthly on the 1st. Spontaneous and Long-term are one-off: check once, done.
+- **Three lists as swipeable tabs** — Daily, Weekly, Long-term — one at a time.
+  Swipe, drag, arrow-key, or click a tab; the underline tracks the scroll.
+- **Checkboxes that reset on their own.** Daily at midnight, Weekly on Monday.
+  Long-term is one-off: check once, done.
 - **A contribution heatmap** over the last 12 months, shaded by what share of
   that day's daily tasks you finished.
 - **Today's donut**, a 30-day completion trend, and a stat strip with your current
@@ -116,19 +116,18 @@ anywhere. Both routes ship, so this is safe to do at any point — or not at all
 
 Two tables:
 
-**`tasks`** are the templates you edit. Each has a `section` (which list it
-appears in) and a `cadence` (how often it resets). Those are separate columns
-because Spontaneous and Long-term goals are both one-off but are different lists.
+**`tasks`** are the templates you edit. Each has a `cadence`, which is both how
+often it resets *and* which of the three tabs it appears in — a list is its reset
+rule, so there is no separate `section` column to keep in sync.
 
 **`completions`** is an append-only log. Each row says *this task was completed
 for this period*:
 
-| cadence | `period_key` |
-| --- | --- |
-| daily | `2026-08-26` |
-| weekly | `2026-W35` (ISO week) |
-| monthly | `2026-08` |
-| once | `once` |
+| cadence | list | `period_key` |
+| --- | --- | --- |
+| daily | Daily | `2026-08-26` |
+| weekly | Weekly | `2026-W35` (ISO week) |
+| once | Long-term | `once` |
 
 A unique index on `(task_id, period_key)` is the whole mechanism. Yesterday's
 tick is stored under yesterday's key, so it can't satisfy today — which is what
@@ -183,7 +182,7 @@ lib/
   periods.ts          local-time period keys, ISO weeks
   stats.ts            heatmap buckets, streaks, averages — all pure
   supabase/           browser, server, and proxy clients
-components/           dashboard, charts, task rows
+components/           dashboard, charts, tabs, task rows
 supabase/schema.sql   tables, indexes, RLS
 scripts/stats.test.ts fixture check for the date and streak math
 ```
