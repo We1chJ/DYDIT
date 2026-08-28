@@ -78,11 +78,19 @@ export function TrendChart({ days, animate = false }: TrendChartProps) {
           dataKey="pct"
           fill="var(--color-pct)"
           radius={[3, 3, 0, 0]}
-          // Re-eases to the new height when today's bar changes. Kept short: 30
-          // bars moving at once reads as noise past about half a second. Off on
-          // first paint, because that animation needs requestAnimationFrame,
-          // which a background tab suspends — the bars would never appear.
-          isAnimationActive={animate}
+          /*
+           * Recharts interpolates each bar from the height it last rendered at,
+           * so ticking today's box moves that bar and leaves the other 29 where
+           * they are. Kept short all the same.
+           *
+           * Off entirely for the first paint: Recharts animates via
+           * requestAnimationFrame, and a hidden tab suspends it, so a chart
+           * that animates on mount draws no bars at all until you look at it.
+           * After that, "auto" rather than plain true, because it also disables
+           * the tween under prefers-reduced-motion — which the media query in
+           * globals.css cannot do here, that block only reaches CSS animations.
+           */
+          isAnimationActive={animate ? "auto" : false}
           animationDuration={420}
           animationEasing="ease-out"
         />

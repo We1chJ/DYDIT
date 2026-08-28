@@ -85,9 +85,17 @@ export function Heatmap({ days, todayKey, weeks }: HeatmapProps) {
             </div>
 
             {columns.map((col, w) => (
+              /*
+                A year of cells appearing at once is a wall. Sweeping them in
+                left to right takes about the same total time but lets the eye
+                follow the year, and it runs on mount only — ticking a box
+                restyles these cells rather than remounting them, so the sweep
+                never replays over an established grid.
+              */
               <div
                 key={w}
-                className="flex min-w-[11px] flex-1 flex-col gap-[3px]"
+                className="anim-col-in flex min-w-[11px] flex-1 flex-col gap-[3px]"
+                style={{ animationDelay: `${w * 8}ms` }}
               >
                 {col.map((cell) => {
                   if (cell.future) {
