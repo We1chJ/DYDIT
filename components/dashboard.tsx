@@ -7,7 +7,14 @@ import {
   useSyncExternalStore,
   useTransition,
 } from "react";
-import { addGoal, addTask, removeGoal, removeTask, setDone } from "@/app/actions";
+import {
+  addGoal,
+  addTask,
+  removeGoal,
+  removeTask,
+  setDone,
+  setTaskGoal,
+} from "@/app/actions";
 import { AddTask } from "@/components/add-task";
 import { GoalBars } from "@/components/goal-bars";
 import { Heatmap } from "@/components/heatmap";
@@ -141,10 +148,11 @@ export function Dashboard({
   const [, startTransition] = useTransition();
 
   /*
-   * Counts user-driven changes. The charts stay static for the first paint and
-   * animate every change after it — motion belongs to the moment something
-   * actually moved, and a mount animation would leave the charts blank in a
-   * background tab where requestAnimationFrame is suspended.
+   * Counts user-driven changes. The charts render statically for the first
+   * paint and animate every change after it — motion belongs to the moment
+   * something actually moved, and Recharts animates via requestAnimationFrame,
+   * which a hidden tab suspends. Animating on mount leaves the charts drawing
+   * no geometry at all until the tab is looked at. Verified, not theoretical.
    */
   const [changes, setChanges] = useState(0);
   const bumpChanges = useCallback(() => setChanges((n) => n + 1), []);
@@ -157,11 +165,6 @@ export function Dashboard({
   const liveGoals = useMemo(
     () => localGoals.filter((g) => !g.archived_at),
     [localGoals],
-  );
-
-  const goalTitles = useMemo(
-    () => new Map(liveGoals.map((g) => [g.id, g.title])),
-    [liveGoals],
   );
 
   const goalRows = useMemo(() => {
@@ -305,6 +308,34 @@ export function Dashboard({
         if (res.error) setError(res.error);
       } catch (e) {
         setError(e instanceof Error ? e.message : "Couldn't remove that.");
+      }
+    });
+  }
+
+  /**
+   * Re-links an existing task. Nothing about its completions changes, so the
+   * goal bars redraw from history the moment the edge moves.
+   */
+  function handleSetGoal(task: Task, goalId: string | null) {
+    bumpChanges();
+    const relink = (id: string | null) =>
+      setLocalTasks((prev) =>
+        prev.map((t) => (t.id === task.id ? { ...t, goal_id: id } : t)),
+      );
+
+    const previous = task.goal_id;
+    relink(goalId);
+
+    startTransition(async () => {
+      try {
+        const res = await setTaskGoal(task.id, goalId);
+        if (res.error) {
+          setError(res.error);
+          relink(previous);
+        }
+      } catch (e) {
+        setError(e instanceof Error ? e.message : "Couldn't change that link.");
+        relink(previous);
       }
     });
   }
@@ -487,9 +518,11 @@ export function Dashboard({
                     index={i}
                     title={task.title}
                     done={stats && key ? isDone(stats.index, task.id, key) : false}
-                    goalTitle={task.goal_id ? goalTitles.get(task.goal_id) : null}
+                    goals={liveGoals}
+                    goalId={task.goal_id}
                     pending={!today || task.id.startsWith(OPTIMISTIC)}
                     onToggle={(next) => handleToggle(task, next)}
+                    onSetGoal={(goalId) => handleSetGoal(task, goalId)}
                     onRemove={() => handleRemove(task)}
                   />
                 ))

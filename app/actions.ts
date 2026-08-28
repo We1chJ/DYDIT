@@ -129,3 +129,25 @@ export async function removeGoal(goalId: string): Promise<Result> {
   revalidatePath("/");
   return {};
 }
+
+/**
+ * Re-points a task at a different goal, or at none.
+ *
+ * Only the edge moves. Completions are keyed on the task, so a goal picks up
+ * the task's whole history the moment it is linked — and a bar can move
+ * backwards when you unlink something, which is the honest answer.
+ */
+export async function setTaskGoal(
+  taskId: string,
+  goalId: string | null,
+): Promise<Result> {
+  const { supabase } = await requireUser();
+  const { error } = await supabase
+    .from("tasks")
+    .update({ goal_id: goalId })
+    .eq("id", taskId);
+
+  if (error) return { error: error.message };
+  revalidatePath("/");
+  return {};
+}

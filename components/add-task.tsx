@@ -2,6 +2,7 @@
 
 import { useRef, useState } from "react";
 import { PlusIcon } from "lucide-react";
+import { GoalChips } from "@/components/goal-chips";
 import type { Goal } from "@/lib/types";
 
 type AddTaskProps = {
@@ -10,14 +11,39 @@ type AddTaskProps = {
   goals: Goal[];
 };
 
+const GOAL_REF = /^(.*?)\s*#(\d+)\s*$/;
+
+/**
+ * Pulls a trailing "#2" off a draft title and resolves it to a goal.
+ *
+ * Only a trailing token counts, and only one that actually names a goal you
+ * have — so "Do set #7" against three goals stays a plain title rather than
+ * losing its suffix to a link that doesn't exist. A bare "#2" with nothing in
+ * front of it is a title too, since stripping it would leave nothing to save.
+ */
+function parseGoalRef(value: string, goals: Goal[]) {
+  const match = GOAL_REF.exec(value);
+  if (!match) return null;
+
+  const title = match[1].trim();
+  const goal = goals[Number(match[2]) - 1];
+  if (!title || !goal) return null;
+
+  return { title, goal };
+}
+
 /**
  * Collapsed to a ghost row until clicked, the way a Notion list item is.
  * Enter commits and stays open so you can type several in a row; Escape closes.
  *
- * The goal picker is a row of inline chips rather than a dropdown: a portalled
- * popup would pull focus out of the input, and the blur would commit the draft
- * before you had chosen anything. The chips suppress mousedown instead, so the
- * caret never leaves the field.
+ * A goal can be picked two ways: click a chip, or end the title with its number
+ * ("Read 30 minutes #2"), which links without leaving the keyboard. The line
+ * under the chips always says which one is about to be used, so the shorthand
+ * is never silent.
+ *
+ * The chips are inline rather than a dropdown: a portalled popup would pull
+ * focus out of the input, and the blur would commit the draft before you had
+ * chosen anything. GoalChips suppresses mousedown instead, so the caret stays.
  */
 export function AddTask({ onAdd, placeholder, goals }: AddTaskProps) {
   const [open, setOpen] = useState(false);
@@ -25,12 +51,25 @@ export function AddTask({ onAdd, placeholder, goals }: AddTaskProps) {
   const [goalId, setGoalId] = useState<string | null>(null);
   const inputRef = useRef<HTMLInputElement>(null);
 
+  const ref = parseGoalRef(value, goals);
+  // A typed "#2" wins over the chips, since it is the more recent instruction.
+  const effectiveGoalId = ref ? ref.goal.id : goalId;
+
   function commit() {
-    const trimmed = value.trim();
+    const parsed = parseGoalRef(value, goals);
+    const trimmed = parsed ? parsed.title : value.trim();
     if (!trimmed) return;
-    onAdd(trimmed, goalId);
+
+    onAdd(trimmed, parsed ? parsed.goal.id : goalId);
     setValue("");
     inputRef.current?.focus();
+  }
+
+  // Clicking a chip supersedes a number already typed, so the "#2" comes back
+  // out of the field — otherwise the row would show two conflicting answers.
+  function selectGoal(id: string | null) {
+    if (ref) setValue(ref.title);
+    setGoalId(id);
   }
 
   if (!open) {
@@ -48,27 +87,6 @@ export function AddTask({ onAdd, placeholder, goals }: AddTaskProps) {
       </button>
     );
   }
-
-  const chip = (id: string | null, label: string) => {
-    const selected = goalId === id;
-    return (
-      <button
-        key={id ?? "none"}
-        type="button"
-        // Keeps focus in the input, so blur never fires and the draft survives.
-        onMouseDown={(e) => e.preventDefault()}
-        onClick={() => setGoalId(id)}
-        aria-pressed={selected}
-        className={`rounded-full border px-2 py-0.5 text-[11.5px] transition-colors ${
-          selected
-            ? "border-primary/40 bg-primary/10 text-primary"
-            : "border-border text-muted-foreground hover:bg-[var(--hover)]"
-        }`}
-      >
-        {label}
-      </button>
-    );
-  };
 
   return (
     <div className="rounded-md px-2 py-[5px]">
@@ -98,10 +116,24 @@ export function AddTask({ onAdd, placeholder, goals }: AddTaskProps) {
       </div>
 
       {goals.length > 0 ? (
-        <div className="mt-1.5 flex flex-wrap items-center gap-1.5 pl-6">
-          <span className="text-[11.5px] text-faint">Goal</span>
-          {chip(null, "None")}
-          {goals.map((g) => chip(g.id, g.title))}
+        <div className="mt-1.5 space-y-1 pl-6">
+          <GoalChips
+            goals={goals}
+            selected={effectiveGoalId}
+            onSelect={selectGoal}
+            keepFocus
+          />
+          {/* Always one line, so resolving a number never shifts the layout. */}
+          <p className="text-[11px] text-faint">
+            {ref ? (
+              <span className="text-primary">
+                → {ref.goal.title}
+                <span className="text-faint"> · “#2” drops off the title</span>
+              </span>
+            ) : (
+              "End the title with #2 to link it as you type."
+            )}
+          </p>
         </div>
       ) : null}
     </div>

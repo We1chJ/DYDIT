@@ -51,11 +51,21 @@ export function GoalBars({
       ) : null}
 
       <div className="mt-3 space-y-3.5">
-        {progress.map(({ goal, rate, dueDone, dueTotal, linked }) => {
+        {progress.map(({ goal, rate, dueDone, dueTotal, linked }, i) => {
           const pct = rate === null ? 0 : Math.round(rate * 100);
           return (
             <div key={goal.id} className="group">
               <div className="flex items-baseline gap-2">
+                {/*
+                  Positional, and only ever an input shorthand — the number is
+                  what you type when adding a task, never what gets stored.
+                */}
+                <span
+                  title={`Goal ${i + 1} — end a task's title with #${i + 1} to link it`}
+                  className="tnum shrink-0 text-[11.5px] text-faint"
+                >
+                  {i + 1}
+                </span>
                 <span className="truncate text-[14px] font-medium text-foreground">
                   {goal.title}
                 </span>
@@ -82,7 +92,11 @@ export function GoalBars({
                 className="mt-1.5 block"
               >
                 <ProgressTrack className="h-1.5">
-                  <ProgressIndicator className="rounded-full transition-[width] duration-500 ease-out" />
+                  {/* Same curve as every other entrance — see --ease-out-expo. */}
+                  <ProgressIndicator
+                    className="rounded-full transition-[width] duration-500"
+                    style={{ transitionTimingFunction: "var(--ease-out-expo)" }}
+                  />
                 </ProgressTrack>
               </Progress>
 
