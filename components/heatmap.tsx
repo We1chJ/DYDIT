@@ -57,7 +57,17 @@ export function Heatmap({ days, todayKey, weeks }: HeatmapProps) {
         that the wrapper scrolls rather than letting cells collapse to slivers.
         Cells are aspect-square, so the grid stays square at any width.
       */}
-      <div className="overflow-x-auto pb-1">
+      {/*
+        pb-2 leaves room for the 5px the columns rise through on entrance.
+        With only 4px they overshot the padding by a pixel, which raised a
+        vertical scrollbar; that stole ~15px of width, which pushed the grid
+        wide enough to raise a horizontal one as well. Both appeared on load
+        and vanished when the animation landed.
+
+        no-scrollbar covers the honest case underneath: below 740px the grid
+        genuinely does scroll, and the bar is noise there too.
+      */}
+      <div className="no-scrollbar overflow-x-auto pb-2">
         <div className="flex min-w-[740px] flex-col gap-1">
           {/* Month ruler */}
           <div className="flex gap-[3px] pl-8">
