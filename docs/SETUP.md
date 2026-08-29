@@ -7,9 +7,15 @@ works, and what each chart measures.
 
 ## What it does
 
-- **Two lists as swipeable tabs** — Daily and Weekly — one at a time. Swipe,
-  drag, arrow-key, or click a tab; the underline tracks the scroll.
-- **Checkboxes that reset on their own.** Daily at midnight, Weekly on Monday.
+- **Two recurring lists as swipeable tabs** — Daily and Weekly — one at a time.
+  Swipe, drag, arrow-key, or click a tab; the underline tracks the scroll.
+- **A Once card above them**, for whatever came up. It is a card rather than a
+  third tab so it stays readable alongside the recurring lists instead of
+  taking their place. Tick it and it stays ticked until you clear it.
+- **Checkboxes that reset on their own.** Daily at midnight, Weekly on Monday,
+  Once never.
+- **Editable in place.** Click a task's text to rename it; Enter commits,
+  Escape reverts.
 - **Long-term goals as counts.** A goal is never checked off. Link tasks to it
   and it reports the days you actually fed it, out of the days since you
   started.
@@ -17,6 +23,11 @@ works, and what each chart measures.
   that day's daily tasks you finished.
 - **Today's donut**, a 30-day completion trend, and a stat strip with your current
   streak and this month's average.
+- **A time-of-day curve** — when in the day you actually tick things off. Each
+  row also has a clock button on hover showing that one task's times.
+- **Linking by number.** Goals are numbered; end a new task's title with `#2`
+  and it links to goal 2, dropping the token from the saved title. Clicking a
+  task's goal label re-links it afterwards.
 - **Magic-link sign-in**, so the same list follows you between computers.
 
 ## Stack
@@ -180,9 +191,14 @@ ruin last week.
 
 ## Deploying
 
-Push to GitHub, import at [vercel.com/new](https://vercel.com/new), and add the
-same two environment variables. Then add your production URL to Supabase's
-Redirect URLs (step 4).
+Live at [dydit.vercel.app](https://dydit.vercel.app), deployed from `main` on
+every push.
+
+To stand up your own: push to GitHub, import at
+[vercel.com/new](https://vercel.com/new), and add the same two environment
+variables there — `.env.local` is gitignored, so the build has no other way to
+get them. Then add your production URL to Supabase's Redirect URLs alongside
+the localhost one (step 4), or the magic link will refuse to come back.
 
 ---
 
@@ -191,17 +207,17 @@ Redirect URLs (step 4).
 ```
 app/
   page.tsx            auth guard, fetches raw rows
-  actions.ts          add / tick / archive
+  actions.ts          add / tick / rename / re-link / archive
   login/              magic-link form
   preview/            dev-only design harness with sample data
   auth/confirm/       token_hash verification  (works in any browser)
   auth/callback/      PKCE code exchange       (zero-config fallback)
 proxy.ts              session refresh + route guard
 lib/
-  periods.ts          local-time period keys, ISO weeks
-  stats.ts            heatmap buckets, streaks, averages — all pure
+  periods.ts          local-time period keys, ISO weeks, clock formatting
+  stats.ts            heatmap buckets, streaks, goal counts, time of day — pure
   supabase/           browser, server, and proxy clients
-components/           dashboard, charts, tabs, goal bars, task rows
+components/           dashboard, charts, tabs, goal rows, task rows
 supabase/schema.sql   tables, indexes, RLS
 scripts/stats.test.ts fixture check for the date and streak math
 ```
