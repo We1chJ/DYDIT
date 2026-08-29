@@ -2,29 +2,23 @@
 
 import { useRef, useState } from "react";
 import { PlusIcon, XIcon } from "lucide-react";
-import { Progress, ProgressTrack, ProgressIndicator } from "@/components/ui/progress";
-import type { GoalProgress } from "@/lib/stats";
+import type { GoalStat } from "@/lib/stats";
 
-type GoalBarsProps = {
-  progress: GoalProgress[];
-  windowDays: number;
+type GoalRowsProps = {
+  stats: GoalStat[];
   onAdd: (title: string) => void;
   onRemove: (goalId: string) => void;
 };
 
 /**
- * Long-term goals as horizontal bars.
+ * Long-term goals as counts rather than bars.
  *
- * The bar is a completion rate over a rolling window, not a running total: a
- * goal you stopped feeding should visibly sag. The line underneath says what is
- * due right now, so the bar means something at both timescales.
+ * There is no bar because there is no denominator: an open-ended goal has no
+ * total to be a fraction of, so a bar would have to invent a finish line and
+ * then imply you were approaching it. What can be said honestly is how long
+ * you have kept at it — days you fed it, out of days since you started.
  */
-export function GoalBars({
-  progress,
-  windowDays,
-  onAdd,
-  onRemove,
-}: GoalBarsProps) {
+export function GoalRows({ stats, onAdd, onRemove }: GoalRowsProps) {
   const [adding, setAdding] = useState(false);
   const [value, setValue] = useState("");
   const inputRef = useRef<HTMLInputElement>(null);
@@ -42,17 +36,16 @@ export function GoalBars({
         Goals
       </h2>
 
-      {progress.length === 0 && !adding ? (
+      {stats.length === 0 && !adding ? (
         <p className="mt-2 text-[13px] leading-relaxed text-faint">
           A goal is something daily and weekly tasks feed into — &ldquo;Learn
-          Japanese&rdquo;, say. Add one, then link tasks to it and the bar fills
-          as you keep them up.
+          Japanese&rdquo;, say. Add one, link tasks to it, and this counts the
+          days you actually fed it.
         </p>
       ) : null}
 
       <div className="mt-3 space-y-3.5">
-        {progress.map(({ goal, rate, dueDone, dueTotal, linked }, i) => {
-          const pct = rate === null ? 0 : Math.round(rate * 100);
+        {stats.map(({ goal, activeDays, ageDays, streak, dueDone, dueTotal, linked }, i) => {
           return (
             <div key={goal.id} className="group">
               <div className="flex items-baseline gap-2">
@@ -70,10 +63,10 @@ export function GoalBars({
                   {goal.title}
                 </span>
                 <span
-                  key={pct}
-                  className="anim-num tnum ml-auto text-[13px] font-semibold text-foreground"
+                  key={activeDays}
+                  className="anim-num tnum ml-auto shrink-0 text-[13px] font-semibold text-foreground"
                 >
-                  {rate === null ? "—" : `${pct}%`}
+                  {activeDays} {activeDays === 1 ? "day" : "days"}
                 </span>
                 <button
                   type="button"
@@ -86,26 +79,18 @@ export function GoalBars({
                 </button>
               </div>
 
-              <Progress
-                value={pct}
-                aria-label={`${goal.title}: ${pct}% over the last ${windowDays} days`}
-                className="mt-1.5 block"
-              >
-                <ProgressTrack className="h-1.5">
-                  {/* Same curve as every other entrance — see --ease-out-expo. */}
-                  <ProgressIndicator
-                    className="rounded-full transition-[width] duration-500"
-                    style={{ transitionTimingFunction: "var(--ease-out-expo)" }}
-                  />
-                </ProgressTrack>
-              </Progress>
-
-              <p className="tnum mt-1 text-[11.5px] text-faint">
+              <p className="tnum mt-0.5 text-[11.5px] text-faint">
                 {linked === 0
                   ? "no tasks linked yet"
-                  : dueTotal === 0
-                    ? `${linked} linked · nothing due right now`
-                    : `${dueDone} of ${dueTotal} due now · ${linked} linked`}
+                  : [
+                      `of ${ageDays} since you started`,
+                      streak > 1 ? `${streak} in a row` : null,
+                      dueTotal === 0
+                        ? "nothing due right now"
+                        : `${dueDone} of ${dueTotal} due now`,
+                    ]
+                      .filter(Boolean)
+                      .join(" · ")}
               </p>
             </div>
           );

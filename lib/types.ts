@@ -83,6 +83,3 @@ export const TABS: TabDef[] = [
 export const TAB_BY_CADENCE = new Map(
   [...TABS, ONCE].map((t) => [t.cadence, t]),
 );
-
-/** How far back a goal's progress bar looks. */
-export const GOAL_WINDOW_DAYS = 30;

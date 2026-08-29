@@ -1,6 +1,6 @@
 import { formatClock, isoWeekKey, minuteOfDay, periodKey, toDayKey, fromDayKey } from "../lib/periods";
 import {
-  activeOn, averageRatio, busiestHour, currentStreak, dailyStats, goalProgress,
+  activeOn, averageRatio, busiestHour, currentStreak, dailyStats, goalStats,
   longestStreak, perfectDays, taskMinutes, timeOfDay,
 } from "../lib/stats";
 import type { Completion, Goal, Task } from "../lib/types";
@@ -90,10 +90,10 @@ eq("pre-history excluded from average", averageRatio(noneYet), null);
 
 
 // --- Long-term goals ---------------------------------------------------------
-// "today" = Aug 12 2026 (a Wednesday). A 7-day window covers Aug 6-12, which
-// spans ISO weeks W32 (Aug 6-9) and W33 (Aug 10-12).
+// "today" = Aug 12 2026 (a Wednesday). The goals were created Jul 1, so they
+// are 43 days old inclusive.
 console.log("");
-console.log("goalProgress  (7-day window ending Aug 12)");
+console.log("goalStats  (today = Aug 12 2026)");
 const goal = (id: string, title: string): Goal =>
   ({ id, title, archived_at: null, created_at: "2026-07-01T09:00:00" });
 
@@ -104,46 +104,59 @@ const gTasks = [
   task("unlinked", "daily", "2026-08-01T09:00:00", null),
 ];
 const gComps = [
-  // 3 of the 7 daily opportunities met.
   comp("anki", "2026-08-12", "2026-08-12"),
   comp("anki", "2026-08-11", "2026-08-11"),
   comp("anki", "2026-08-10", "2026-08-10"),
-  // 1 of the 2 weekly opportunities met (W33 done, W32 not).
+  // Same day as the anki tick above, so it must not add a fourth active day.
   comp("lesson", "2026-W33", "2026-08-10"),
   // Belongs to no goal - must not count toward g1.
   comp("unlinked", "2026-08-12", "2026-08-12"),
 ];
-const gp = goalProgress(goals, gTasks, gComps, new Date(2026, 7, 12), 7);
+const gs = goalStats(goals, gTasks, gComps, new Date(2026, 7, 12));
 
-eq("one entry per live goal", gp.length, 2);
-eq("g1: 7 daily + 2 weekly opportunities, 4 met", gp[0].rate, 4 / 9);
-eq("g1 due now = today's daily + this week's weekly", [gp[0].dueDone, gp[0].dueTotal], [2, 2]);
-eq("g1 linked count excludes the unlinked task", gp[0].linked, 2);
-eq("goal with no tasks has null rate", gp[1].rate, null);
-eq("goal with no tasks is not due", [gp[1].dueDone, gp[1].dueTotal], [0, 0]);
+eq("one entry per live goal", gs.length, 2);
+eq("g1 active on 3 distinct days", gs[0].activeDays, 3);
+eq("two ticks on one day still count as one day", gs[0].activeDays, 3);
+eq("g1 age is inclusive of both ends", gs[0].ageDays, 43);
+eq("g1 streak runs Aug 10-12", gs[0].streak, 3);
+eq("g1 due now = today's daily + this week's weekly", [gs[0].dueDone, gs[0].dueTotal], [2, 2]);
+eq("g1 linked count excludes the unlinked task", gs[0].linked, 2);
+eq("goal with no tasks has no active days", gs[1].activeDays, 0);
+eq("goal with no tasks has no streak", gs[1].streak, 0);
+eq("goal with no tasks is not due", [gs[1].dueDone, gs[1].dueTotal], [0, 0]);
 
-const archived = goalProgress(
+// An untouched today must not break a run that is otherwise current.
+const gapComps = [comp("anki", "2026-08-11", "2026-08-11"), comp("anki", "2026-08-10", "2026-08-10")];
+eq("an untouched today leaves the streak standing",
+  goalStats([goals[0]], gTasks, gapComps, new Date(2026, 7, 12))[0].streak, 2);
+
+// Two days idle does break it.
+const staleComps = [comp("anki", "2026-08-09", "2026-08-09")];
+eq("a missed day ends the streak",
+  goalStats([goals[0]], gTasks, staleComps, new Date(2026, 7, 12))[0].streak, 0);
+
+// A goal made today is one day old, never zero.
+eq("a goal created today is one day old",
+  goalStats([goal("g3", "New")].map((g) => ({ ...g, created_at: "2026-08-12T09:00:00" })),
+    [], [], new Date(2026, 7, 12))[0].ageDays, 1);
+
+const archived = goalStats(
   [{ ...goals[0], archived_at: "2026-08-01T09:00:00" }], gTasks, gComps,
-  new Date(2026, 7, 12), 7);
+  new Date(2026, 7, 12));
 eq("archived goals are dropped", archived.length, 0);
-
-// A task created mid-window only contributes from its creation day.
-const lateGp = goalProgress([goals[0]], [task("late", "daily", "2026-08-10T09:00:00", "g1")],
-  [comp("late", "2026-08-12", "2026-08-12")], new Date(2026, 7, 12), 7);
-eq("a task added mid-window counts only from its creation day", lateGp[0].rate, 1 / 3);
 
 // --- one-time tasks ---------------------------------------------------------
 console.log("\nonce cadence");
 eq("a one-off's key never moves", periodKey("once", new Date(2026, 7, 12)), "once");
 eq("...not even a year later", periodKey("once", new Date(2027, 0, 1)), "once");
 
-// One opportunity, however long it sits there — not one per day like a daily.
+// A one-off contributes the single day it was ticked, and nothing after.
 const onceGoal: Goal[] = [{ id: "g9", title: "ship", archived_at: null, created_at: "2026-08-01T09:00:00" }];
 const onceTask = [task("o1", "once", "2026-08-01T09:00:00", "g9")];
-eq("an undone one-off drags its goal to 0",
-  goalProgress(onceGoal, onceTask, [], new Date(2026, 7, 12), 7)[0].rate, 0);
-eq("a done one-off is a single met opportunity",
-  goalProgress(onceGoal, onceTask, [comp("o1", "once", "2026-08-05")], new Date(2026, 7, 12), 7)[0].rate, 1);
+eq("an undone one-off leaves its goal with no active days",
+  goalStats(onceGoal, onceTask, [], new Date(2026, 7, 12))[0].activeDays, 0);
+eq("a done one-off marks the day it was ticked",
+  goalStats(onceGoal, onceTask, [comp("o1", "once", "2026-08-05")], new Date(2026, 7, 12))[0].activeDays, 1);
 
 // --- clock -----------------------------------------------------------------
 console.log("\nclock");

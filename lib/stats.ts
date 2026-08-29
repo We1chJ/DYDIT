@@ -1,4 +1,4 @@
-import { addDays, daysBetween, fromDayKey, isoWeekKey, periodKey, toDayKey } from "./periods";
+import { addDays, daysBetween, fromDayKey, periodKey, toDayKey } from "./periods";
 import type { Completion, Goal, Task } from "./types";
 
 /*
@@ -164,10 +164,14 @@ export function perfectDays(days: DayStat[]): number {
 /* Long-term goals                                                            */
 /* ------------------------------------------------------------------------- */
 
-export type GoalProgress = {
+export type GoalStat = {
   goal: Goal;
-  /** Completion rate over the window, or null if nothing was ever due. */
-  rate: number | null;
+  /** Days carrying at least one tick toward this goal. */
+  activeDays: number;
+  /** Days since the goal was created, counting today. */
+  ageDays: number;
+  /** Consecutive days up to today carrying a tick. */
+  streak: number;
   /** Linked tasks due right now (today for daily, this week for weekly). */
   dueTotal: number;
   dueDone: number;
@@ -176,35 +180,25 @@ export type GoalProgress = {
 };
 
 /**
- * Progress for every goal, derived entirely from the tasks pointing at it.
+ * What there is to say about a goal, derived from the tasks pointing at it.
  *
- * The bar is a completion *rate* over a rolling window rather than a running
- * total: a goal you stopped feeding a month ago should visibly fall back, which
- * an ever-growing count could never show. Daily and weekly tasks contribute on
- * the same footing — each counts once per period it was actually due, so one
- * daily task doesn't drown out a weekly one just by coming round more often.
+ * Deliberately counts, not a percentage. A percentage needs a denominator, and
+ * an open-ended goal has none — "learn Japanese" has no total to be a fraction
+ * of, so any bar drawn against it is inventing a finish line. What can honestly
+ * be said is how long you have been at it and how much of that time you have
+ * actually fed it, which is what these numbers are.
+ *
+ * A day counts as active if *any* linked task was ticked, whatever its cadence:
+ * the question is whether the goal got attention, not whether it got all of it.
  */
-export function goalProgress(
+export function goalStats(
   goals: Goal[],
   tasks: Task[],
   completions: Completion[],
   today: Date,
-  windowDays: number,
-): GoalProgress[] {
+): GoalStat[] {
   const index = completionIndex(completions);
   const todayKey = toDayKey(today);
-
-  // The days in the window, newest first, plus the week each one belongs to.
-  const days: { dayKey: string; weekKey: string }[] = [];
-  const weekRepresentative = new Map<string, string>();
-  for (let i = 0; i < windowDays; i++) {
-    const date = addDays(today, -i);
-    const dayKey = toDayKey(date);
-    const weekKey = isoWeekKey(date);
-    days.push({ dayKey, weekKey });
-    // The newest day seen for a week decides whether that week counted at all.
-    if (!weekRepresentative.has(weekKey)) weekRepresentative.set(weekKey, dayKey);
-  }
 
   return goals
     .filter((g) => !g.archived_at)
@@ -212,29 +206,28 @@ export function goalProgress(
       const linked = tasks.filter(
         (t) => t.goal_id === goal.id && !t.archived_at,
       );
+      const ids = new Set(linked.map((t) => t.id));
 
-      let opportunities = 0;
-      let met = 0;
+      // Distinct local days, so ticking four tasks on one day is still one day.
+      const activeDayKeys = new Set<string>();
+      for (const c of completions) {
+        if (ids.has(c.task_id)) activeDayKeys.add(c.completed_on);
+      }
 
-      for (const task of linked) {
-        if (task.cadence === "once") {
-          // A one-off is a single opportunity for as long as it exists, not a
-          // recurring one — it either got done or it is still outstanding.
-          opportunities++;
-          if (isDone(index, task.id, "once")) met++;
-        } else if (task.cadence === "daily") {
-          for (const { dayKey } of days) {
-            if (!activeOn(task, dayKey)) continue;
-            opportunities++;
-            if (isDone(index, task.id, dayKey)) met++;
-          }
-        } else {
-          for (const [weekKey, dayKey] of weekRepresentative) {
-            if (!activeOn(task, dayKey)) continue;
-            opportunities++;
-            if (isDone(index, task.id, weekKey)) met++;
-          }
-        }
+      const createdKey = toDayKey(new Date(goal.created_at));
+      // Inclusive, and floored at 1: a goal made today is one day old, not zero.
+      const ageDays = Math.max(1, daysBetween(createdKey, todayKey) + 1);
+
+      /*
+       * Consecutive active days ending now. An untouched today does not break
+       * the run — it has not finished yet — so the count starts at yesterday
+       * until something lands, the same courtesy currentStreak extends.
+       */
+      let streak = 0;
+      let cursor = activeDayKeys.has(todayKey) ? today : addDays(today, -1);
+      while (activeDayKeys.has(toDayKey(cursor))) {
+        streak++;
+        cursor = addDays(cursor, -1);
       }
 
       let dueTotal = 0;
@@ -247,14 +240,15 @@ export function goalProgress(
 
       return {
         goal,
-        rate: opportunities === 0 ? null : met / opportunities,
+        activeDays: activeDayKeys.size,
+        ageDays,
+        streak,
         dueTotal,
         dueDone,
         linked: linked.length,
       };
     });
 }
-
 
 export type HourBucket = { hour: number; count: number };
 

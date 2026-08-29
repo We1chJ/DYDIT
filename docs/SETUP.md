@@ -10,9 +10,9 @@ works, and what each chart measures.
 - **Two lists as swipeable tabs** — Daily and Weekly — one at a time. Swipe,
   drag, arrow-key, or click a tab; the underline tracks the scroll.
 - **Checkboxes that reset on their own.** Daily at midnight, Weekly on Monday.
-- **Long-term goals as progress bars.** A goal is never checked off. Link daily
-  and weekly tasks to it and the bar fills with your completion rate over the
-  last 30 days, so a goal you stop feeding visibly sags.
+- **Long-term goals as counts.** A goal is never checked off. Link tasks to it
+  and it reports the days you actually fed it, out of the days since you
+  started.
 - **A contribution heatmap** over the last 12 months, shaded by what share of
   that day's daily tasks you finished.
 - **Today's donut**, a 30-day completion trend, and a stat strip with your current
@@ -138,17 +138,22 @@ Unchecking deletes the row. Removing a task **archives** it rather than deleting
 it, so last month's perfect days stay perfect. Removing a goal archives it too
 and simply unlinks its tasks — it never takes the work with it.
 
-### What a goal's progress bar measures
+### What a goal reports
 
-The share of its linked tasks' *opportunities* that were met over the last 30
-days. Each daily task contributes one opportunity per day it existed; each weekly
-task one per ISO week. Counting opportunities rather than raw completions stops a
-daily task from drowning out a weekly one just by coming round seven times as
-often.
+Days on which at least one of its linked tasks was ticked, out of the days since
+the goal was created. Plus the current run of consecutive such days, when there
+is one, and what's due right now.
 
-It is a rate over a window, not a running total, so a goal you stopped feeding
-falls back instead of coasting on old work. The line underneath the bar says
-what's due right now, so the bar reads at both timescales.
+Counts rather than a percentage, and no bar. A percentage needs a denominator,
+and an open-ended goal has none — "learn Japanese" has no total to be a fraction
+of, so any bar drawn against it has to invent a finish line and then imply you
+are approaching it. Days kept at it is something that can be said honestly.
+
+A day counts if *any* linked task was ticked, whatever its cadence: the question
+is whether the goal got attention that day, not whether it got all of it. Ticking
+four linked tasks on one day is still one day. An untouched today does not break
+a run — it hasn't finished yet — so the streak holds until a day passes with
+nothing on it.
 
 ### Everything is computed in local time
 

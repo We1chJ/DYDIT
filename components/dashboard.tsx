@@ -17,7 +17,7 @@ import {
   setTaskGoal,
 } from "@/app/actions";
 import { AddTask } from "@/components/add-task";
-import { GoalBars } from "@/components/goal-bars";
+import { GoalRows } from "@/components/goal-rows";
 import { Heatmap } from "@/components/heatmap";
 import { Logo } from "@/components/logo";
 import { StatStrip } from "@/components/stat-strip";
@@ -43,7 +43,7 @@ import {
   completionIndex,
   currentStreak,
   dailyStats,
-  goalProgress,
+  goalStats,
   inMonth,
   isDone,
   perfectDays,
@@ -51,7 +51,6 @@ import {
   timeOfDay,
 } from "@/lib/stats";
 import {
-  GOAL_WINDOW_DAYS,
   ONCE,
   TABS,
   TAB_BY_CADENCE,
@@ -177,13 +176,7 @@ export function Dashboard({
 
   const goalRows = useMemo(() => {
     if (!today) return [];
-    return goalProgress(
-      localGoals,
-      localTasks,
-      localComps,
-      today,
-      GOAL_WINDOW_DAYS,
-    );
+    return goalStats(localGoals, localTasks, localComps, today);
   }, [localGoals, localTasks, localComps, today]);
 
   const stats = useMemo(() => {
@@ -534,9 +527,8 @@ export function Dashboard({
 
       <section className="mt-3">
         {stats ? (
-          <GoalBars
-            progress={goalRows}
-            windowDays={GOAL_WINDOW_DAYS}
+          <GoalRows
+            stats={goalRows}
             onAdd={handleAddGoal}
             onRemove={handleRemoveGoal}
           />
