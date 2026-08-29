@@ -1,6 +1,8 @@
-<img src="public/logo-lockup.svg" alt="DYDIT" width="220">
+<p align="center">
+  <img src="public/logo-lockup.svg" alt="DYDIT" width="220">
+</p>
 
-**Did you do it today?**
+<p align="center"><strong>Did you do it today?</strong></p>
 
 A personal to-do list that keeps score. Tasks are templates, not one-shot rows —
 a daily task's checkbox resets every night, and every tick is written to a
@@ -9,7 +11,9 @@ just what's left today but whether you've actually been following through.
 
 Single page, Notion-quiet, light and dark. Built for one person.
 
-![DYDIT](docs/screenshot.jpg)
+<p align="center">
+  <img src="docs/screenshot.jpg" alt="The DYDIT dashboard" width="767">
+</p>
 
 ---
 
