@@ -45,17 +45,25 @@ export type TabDef = {
   blurb: string;
 };
 
+/**
+ * The one-off list.
+ *
+ * Deliberately not a tab: the recurring lists are a rhythm you swipe between,
+ * whereas whatever came up today wants to be visible at the same time as them,
+ * so it gets a card of its own above the strip.
+ */
+export const ONCE: TabDef = {
+  cadence: "once",
+  label: "Once",
+  resets: "never resets",
+  blurb: "Whatever came up. Tick it and it stays ticked until you clear it.",
+};
+
 /*
- * One tab per cadence. There is no separate "section" concept: a list *is* its
- * reset rule, so the two would only ever have to be kept in sync.
+ * One tab per recurring cadence. There is no separate "section" concept: a list
+ * *is* its reset rule, so the two would only ever have to be kept in sync.
  */
 export const TABS: TabDef[] = [
-  {
-    cadence: "once",
-    label: "Once",
-    resets: "never resets",
-    blurb: "Whatever came up. Tick it and it stays ticked until you clear it.",
-  },
   {
     cadence: "daily",
     label: "Daily",
@@ -70,7 +78,11 @@ export const TABS: TabDef[] = [
   },
 ];
 
-export const TAB_BY_CADENCE = new Map(TABS.map((t) => [t.cadence, t]));
+// Every list, tabbed or not — this is what validates an incoming cadence, so
+// leaving Once out of it would make one-off tasks unsavable.
+export const TAB_BY_CADENCE = new Map(
+  [...TABS, ONCE].map((t) => [t.cadence, t]),
+);
 
 /** How far back a goal's progress bar looks. */
 export const GOAL_WINDOW_DAYS = 30;

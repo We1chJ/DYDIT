@@ -52,6 +52,7 @@ import {
 } from "@/lib/stats";
 import {
   GOAL_WINDOW_DAYS,
+  ONCE,
   TABS,
   TAB_BY_CADENCE,
   type Cadence,
@@ -546,6 +547,31 @@ export function Dashboard({
 
       <section className="mt-8">
         {(() => {
+          // Rows are identical wherever they appear; only the period key that
+          // decides "done" differs between the lists.
+          const rows = (list: Task[], key: string | null) =>
+            list.map((task, i) => (
+              <TaskRow
+                key={task.id}
+                index={i}
+                title={task.title}
+                done={stats && key ? isDone(stats.index, task.id, key) : false}
+                goals={liveGoals}
+                goalId={task.goal_id}
+                minutes={taskMinutes(localComps, task.id)}
+                pending={!today || task.id.startsWith(OPTIMISTIC)}
+                onToggle={(next) => handleToggle(task, next)}
+                onRename={(next) => handleRename(task, next)}
+                onSetGoal={(goalId) => handleSetGoal(task, goalId)}
+                onRemove={() => handleRemove(task)}
+              />
+            ));
+
+          const onceTasks = liveTasks.filter((t) => t.cadence === "once");
+          const onceDone = stats
+            ? onceTasks.filter((t) => isDone(stats.index, t.id, "once")).length
+            : 0;
+
           const lists = TABS.map((tab) => {
             const tasks = liveTasks.filter((t) => t.cadence === tab.cadence);
             const key = today ? periodKey(tab.cadence, today) : null;
@@ -569,22 +595,7 @@ export function Dashboard({
               {tasks.length === 0 ? (
                 <p className="px-2 py-2 text-[13px] text-faint">{tab.blurb}</p>
               ) : (
-                tasks.map((task, i) => (
-                  <TaskRow
-                    key={task.id}
-                    index={i}
-                    title={task.title}
-                    done={stats && key ? isDone(stats.index, task.id, key) : false}
-                    goals={liveGoals}
-                    goalId={task.goal_id}
-                    minutes={taskMinutes(localComps, task.id)}
-                    pending={!today || task.id.startsWith(OPTIMISTIC)}
-                    onToggle={(next) => handleToggle(task, next)}
-                    onRename={(next) => handleRename(task, next)}
-                    onSetGoal={(goalId) => handleSetGoal(task, goalId)}
-                    onRemove={() => handleRemove(task)}
-                  />
-                ))
+                rows(tasks, key)
               )}
               <AddTask
                 goals={liveGoals}
@@ -594,7 +605,45 @@ export function Dashboard({
             </div>
           ));
 
-          return <TaskTabs tabs={meta} panels={panels} />;
+          return (
+            <>
+              {/*
+                Its own card rather than a third tab, so what came up today is
+                readable at the same time as the recurring lists instead of
+                taking their place.
+              */}
+              <div className="mb-6 rounded-lg border border-border bg-card p-4">
+                <div className="mb-1 flex items-baseline justify-between gap-3">
+                  <h2 className="text-[12px] font-semibold uppercase tracking-[0.06em] text-muted-foreground">
+                    {ONCE.label}
+                  </h2>
+                  <span className="tnum text-[11.5px] text-faint">
+                    {onceTasks.length === 0
+                      ? ONCE.resets
+                      : `${onceDone}/${onceTasks.length} · ${ONCE.resets}`}
+                  </span>
+                </div>
+
+                {/* Pulled back so the checkboxes line up with the heading. */}
+                <div className="-mx-2">
+                  {onceTasks.length === 0 ? (
+                    <p className="px-2 py-1 text-[13px] text-faint">
+                      {ONCE.blurb}
+                    </p>
+                  ) : (
+                    rows(onceTasks, "once")
+                  )}
+                  <AddTask
+                    goals={liveGoals}
+                    onAdd={(title, goalId) => handleAdd("once", title, goalId)}
+                    placeholder="Something that came up"
+                  />
+                </div>
+              </div>
+
+              <TaskTabs tabs={meta} panels={panels} />
+            </>
+          );
         })()}
       </section>
     </div>

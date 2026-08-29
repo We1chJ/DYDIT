@@ -31,6 +31,10 @@ const tasks: Task[] = (
     ["Long run", "weekly", "g2"],
     ["Ship one feature", "weekly", "g3"],
     ["Deep clean the kitchen", "weekly", null],
+    // One-offs, so the Once card shows a real list rather than its empty state.
+    ["Book the dentist", "once", null],
+    ["Reply to the landlord", "once", null],
+    ["Renew the passport", "once", null],
   ] as const
 ).map(([title, cadence, goal_id], i) => ({
   id: `t${i}`,
@@ -92,6 +96,20 @@ for (let d = 200; d >= 0; d--) {
           period_key: dk,
           completed_on: dk,
           completed_minute: seededMinute(d * 7 + ti),
+        });
+      }
+      return;
+    }
+
+    if (t.cadence === "once") {
+      // Ticked one time, on one day, under the key that never moves.
+      if (t.id === "t8" && d === 3) {
+        completions.push({
+          id: `co-${t.id}`,
+          task_id: t.id,
+          period_key: "once",
+          completed_on: dk,
+          completed_minute: 11 * 60 + 20,
         });
       }
       return;
