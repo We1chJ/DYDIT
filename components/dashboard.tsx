@@ -12,6 +12,7 @@ import {
   addTask,
   removeGoal,
   removeTask,
+  renameTask,
   setDone,
   setTaskGoal,
 } from "@/app/actions";
@@ -24,17 +25,21 @@ import { TaskRow } from "@/components/task-row";
 import { TaskTabs, type TabMeta } from "@/components/task-tabs";
 import { ThemeToggle } from "@/components/theme-toggle";
 import { TodayDonut } from "@/components/today-donut";
+import { TimeCurve } from "@/components/time-curve";
 import { TrendChart } from "@/components/trend-chart";
 import {
   addDays,
+  formatClock,
   formatDayLong,
   fromDayKey,
+  minuteOfDay,
   monthKey,
   periodKey,
   toDayKey,
 } from "@/lib/periods";
 import {
   averageRatio,
+  busiestHour,
   completionIndex,
   currentStreak,
   dailyStats,
@@ -42,6 +47,8 @@ import {
   inMonth,
   isDone,
   perfectDays,
+  taskMinutes,
+  timeOfDay,
 } from "@/lib/stats";
 import {
   GOAL_WINDOW_DAYS,
@@ -195,6 +202,7 @@ export function Dashboard({
       monthAvg: averageRatio(month),
       monthPerfect: perfectDays(month),
       index: completionIndex(localComps),
+      hours: timeOfDay(localComps),
     };
   }, [today, todayKey, localTasks, localComps]);
 
@@ -203,6 +211,9 @@ export function Dashboard({
     bumpChanges();
     const key = periodKey(task.cadence, today);
     const dayKey = toDayKey(today);
+    // The wall-clock minute has to come from the browser for the same reason
+    // the day key does — the server's clock is not standing where you are.
+    const minute = minuteOfDay(new Date());
 
     setLocalComps((prev) =>
       next
@@ -213,6 +224,7 @@ export function Dashboard({
               task_id: task.id,
               period_key: key,
               completed_on: dayKey,
+              completed_minute: minute,
             },
           ]
         : prev.filter((c) => !(c.task_id === task.id && c.period_key === key)),
@@ -220,7 +232,7 @@ export function Dashboard({
 
     startTransition(async () => {
       try {
-        const res = await setDone(task.id, key, dayKey, next);
+        const res = await setDone(task.id, key, dayKey, minute, next);
         if (res.error) setError(res.error);
       } catch (e) {
         setError(e instanceof Error ? e.message : "Couldn't save that.");
@@ -308,6 +320,29 @@ export function Dashboard({
         if (res.error) setError(res.error);
       } catch (e) {
         setError(e instanceof Error ? e.message : "Couldn't remove that.");
+      }
+    });
+  }
+
+  function handleRename(task: Task, title: string) {
+    bumpChanges();
+    const previous = task.title;
+    const setTitle = (t: string) =>
+      setLocalTasks((prev) =>
+        prev.map((x) => (x.id === task.id ? { ...x, title: t } : x)),
+      );
+    setTitle(title);
+
+    startTransition(async () => {
+      try {
+        const res = await renameTask(task.id, title);
+        if (res.error) {
+          setError(res.error);
+          setTitle(previous);
+        }
+      } catch (e) {
+        setError(e instanceof Error ? e.message : "Couldn't rename that.");
+        setTitle(previous);
       }
     });
   }
@@ -472,6 +507,28 @@ export function Dashboard({
             )}
           </div>
         </div>
+
+        <div className="rounded-lg border border-border bg-card p-4">
+          <div className="mb-3 flex items-baseline justify-between gap-3">
+            <h2 className="text-[12px] font-semibold uppercase tracking-[0.06em] text-muted-foreground">
+              Time of day
+            </h2>
+            {/*
+              The headline reading, in words. The curve shows the shape; this
+              says the one number you would otherwise squint for.
+            */}
+            <span className="text-[11.5px] text-faint">
+              {stats && busiestHour(stats.hours) !== null
+                ? `most often around ${formatClock(busiestHour(stats.hours)! * 60)}`
+                : "no timed ticks yet"}
+            </span>
+          </div>
+          {stats ? (
+            <TimeCurve hours={stats.hours} animate={changes > 0} />
+          ) : (
+            <div className="h-[168px] animate-pulse rounded bg-muted/40" />
+          )}
+        </div>
       </section>
 
       <section className="mt-3">
@@ -520,8 +577,10 @@ export function Dashboard({
                     done={stats && key ? isDone(stats.index, task.id, key) : false}
                     goals={liveGoals}
                     goalId={task.goal_id}
+                    minutes={taskMinutes(localComps, task.id)}
                     pending={!today || task.id.startsWith(OPTIMISTIC)}
                     onToggle={(next) => handleToggle(task, next)}
+                    onRename={(next) => handleRename(task, next)}
                     onSetGoal={(goalId) => handleSetGoal(task, goalId)}
                     onRemove={() => handleRemove(task)}
                   />

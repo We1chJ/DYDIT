@@ -217,7 +217,12 @@ export function goalProgress(
       let met = 0;
 
       for (const task of linked) {
-        if (task.cadence === "daily") {
+        if (task.cadence === "once") {
+          // A one-off is a single opportunity for as long as it exists, not a
+          // recurring one — it either got done or it is still outstanding.
+          opportunities++;
+          if (isDone(index, task.id, "once")) met++;
+        } else if (task.cadence === "daily") {
           for (const { dayKey } of days) {
             if (!activeOn(task, dayKey)) continue;
             opportunities++;
@@ -248,4 +253,55 @@ export function goalProgress(
         linked: linked.length,
       };
     });
+}
+
+
+export type HourBucket = { hour: number; count: number };
+
+/**
+ * Completions bucketed by the local hour they were ticked in.
+ *
+ * Rows written before completed_minute existed carry no time and are skipped
+ * rather than counted at midnight, which would invent a spike at hour zero.
+ */
+export function timeOfDay(completions: Completion[]): HourBucket[] {
+  const buckets: HourBucket[] = Array.from({ length: 24 }, (_, hour) => ({
+    hour,
+    count: 0,
+  }));
+
+  for (const c of completions) {
+    if (c.completed_minute === null) continue;
+    const hour = Math.floor(c.completed_minute / 60);
+    if (hour < 0 || hour > 23) continue;
+    buckets[hour].count++;
+  }
+
+  return buckets;
+}
+
+/**
+ * The hour holding the most completions, or null if nothing is timed yet.
+ *
+ * Deliberately the mode rather than a mean or median: those wrap badly around
+ * midnight, where a task done at 11pm and again at 1am would average to noon —
+ * an hour it has never once been done in.
+ */
+export function busiestHour(buckets: HourBucket[]): number | null {
+  let best: HourBucket | null = null;
+  for (const b of buckets) {
+    if (b.count > 0 && (best === null || b.count > best.count)) best = b;
+  }
+  return best === null ? null : best.hour;
+}
+
+/** Every timed completion of one task, as minutes since local midnight. */
+export function taskMinutes(
+  completions: Completion[],
+  taskId: string,
+): number[] {
+  return completions
+    .filter((c) => c.task_id === taskId && c.completed_minute !== null)
+    .map((c) => c.completed_minute as number)
+    .sort((a, b) => a - b);
 }

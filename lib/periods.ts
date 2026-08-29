@@ -74,7 +74,26 @@ export function periodKey(cadence: Cadence, d: Date): string {
       return toDayKey(d);
     case "weekly":
       return isoWeekKey(d);
+    case "once":
+      // A key that never moves. Paired with the unique index, that is the whole
+      // of "one-time": the first tick occupies the only slot there will ever be,
+      // so tomorrow cannot un-tick it the way it un-ticks a daily.
+      return "once";
   }
+}
+
+/** Minutes since local midnight, 0-1439. */
+export function minuteOfDay(d: Date): number {
+  return d.getHours() * 60 + d.getMinutes();
+}
+
+/** A minute-of-day as a short wall-clock label, e.g. "8:40pm", "9am". */
+export function formatClock(minute: number): string {
+  const h24 = Math.floor(minute / 60) % 24;
+  const m = minute % 60;
+  const suffix = h24 < 12 ? "am" : "pm";
+  const h = h24 % 12 === 0 ? 12 : h24 % 12;
+  return m === 0 ? `${h}${suffix}` : `${h}:${String(m).padStart(2, "0")}${suffix}`;
 }
 
 const MONTHS = [

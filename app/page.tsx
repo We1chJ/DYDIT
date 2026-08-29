@@ -35,7 +35,7 @@ export default async function Page() {
       .order("created_at", { ascending: true }),
     supabase
       .from("completions")
-      .select("id, task_id, period_key, completed_on")
+      .select("id, task_id, period_key, completed_on, completed_minute")
       .gte("completed_on", since.toISOString().slice(0, 10)),
     supabase
       .from("goals")

@@ -61,6 +61,20 @@ function weekKey(d: Date) {
 const completions: Completion[] = [];
 const seenWeeks = new Set<string>();
 
+/*
+ * A plausible clock time for a generated tick.
+ *
+ * Two humps — a morning one around 8am and a larger evening one around 9pm —
+ * because a flat random minute would draw a flat curve, and a flat curve tells
+ * you nothing about whether the chart works. Deterministic, like `seeded`.
+ */
+function seededMinute(n: number): number {
+  const pick = seeded(n * 3 + 1);
+  const spread = (seeded(n * 5 + 2) - 0.5) * 150;
+  const centre = pick > 0.62 ? 21 * 60 : 8 * 60;
+  return Math.max(0, Math.min(1439, Math.round(centre + spread)));
+}
+
 for (let d = 200; d >= 0; d--) {
   const date = new Date();
   date.setDate(date.getDate() - d);
@@ -77,6 +91,7 @@ for (let d = 200; d >= 0; d--) {
           task_id: t.id,
           period_key: dk,
           completed_on: dk,
+          completed_minute: seededMinute(d * 7 + ti),
         });
       }
       return;
@@ -92,6 +107,7 @@ for (let d = 200; d >= 0; d--) {
         task_id: t.id,
         period_key: wk,
         completed_on: dk,
+        completed_minute: seededMinute(d * 13 + ti),
       });
     }
   });

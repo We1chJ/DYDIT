@@ -1,4 +1,4 @@
-export type Cadence = "daily" | "weekly";
+export type Cadence = "daily" | "weekly" | "once";
 
 /**
  * A long-term goal. Never checked off directly — its progress is derived from
@@ -27,6 +27,13 @@ export type Completion = {
   period_key: string;
   /** Local calendar day the box was ticked, as YYYY-MM-DD. */
   completed_on: string;
+  /**
+   * Minutes since local midnight when the box was ticked, 0-1439.
+   *
+   * Null for rows written before the column existed, so every reader has to
+   * cope with its absence rather than assuming a time.
+   */
+  completed_minute: number | null;
 };
 
 export type TabDef = {
@@ -43,6 +50,12 @@ export type TabDef = {
  * reset rule, so the two would only ever have to be kept in sync.
  */
 export const TABS: TabDef[] = [
+  {
+    cadence: "once",
+    label: "Once",
+    resets: "never resets",
+    blurb: "Whatever came up. Tick it and it stays ticked until you clear it.",
+  },
   {
     cadence: "daily",
     label: "Daily",

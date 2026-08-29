@@ -28,8 +28,9 @@ create table if not exists public.tasks (
   id          uuid primary key default gen_random_uuid(),
   user_id     uuid not null references auth.users on delete cascade,
   title       text not null check (length(trim(title)) between 1 and 500),
-  -- Cadence is also the list a task appears in: Daily or Weekly.
-  cadence     text not null check (cadence in ('daily','weekly')),
+  -- Cadence is also the list a task appears in, and how often it resets.
+  -- 'once' never resets: it is ticked one time and stays ticked.
+  cadence     text not null check (cadence in ('daily','weekly','once')),
   -- Optional edge to a long-term goal.  Nulled rather than cascaded, so
   -- dropping a goal never takes its tasks (or their history) with it.
   goal_id     uuid references public.goals on delete set null,
@@ -54,6 +55,10 @@ create table if not exists public.completions (
   task_id      uuid not null references public.tasks on delete cascade,
   period_key   text not null,
   completed_on date not null,
+  -- Minutes since local midnight (0-1439), computed in the browser like
+  -- completed_on is. created_at below is the server's UTC clock, which cannot
+  -- tell you what time it was where you were standing.
+  completed_minute smallint check (completed_minute between 0 and 1439),
   created_at   timestamptz not null default now(),
   unique (task_id, period_key)
 );
@@ -91,3 +96,21 @@ create policy "own completions" on public.completions
   for all
   using (auth.uid() = user_id)
   with check (auth.uid() = user_id);
+
+
+-- ---------------------------------------------------------------------------
+-- Upgrades for databases created before these columns existed.
+--
+-- `create table if not exists` above will not alter a table that is already
+-- there, so anything added after the first release has to be repeated here.
+-- Both statements are guarded and safe to run repeatedly.
+-- ---------------------------------------------------------------------------
+alter table public.tasks drop constraint if exists tasks_cadence_check;
+alter table public.tasks add constraint tasks_cadence_check
+  check (cadence in ('daily','weekly','once'));
+
+alter table public.completions
+  add column if not exists completed_minute smallint;
+alter table public.completions drop constraint if exists completions_completed_minute_check;
+alter table public.completions add constraint completions_completed_minute_check
+  check (completed_minute is null or completed_minute between 0 and 1439);

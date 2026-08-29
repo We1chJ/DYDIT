@@ -44,13 +44,15 @@ export async function addTask(
 /**
  * Tick or untick a task for one period.
  *
- * periodKey and completedOn are computed in the browser because they depend on
- * the user's local calendar day — see lib/periods.ts.
+ * periodKey, completedOn and minute are all computed in the browser because
+ * they depend on the user's local clock — see lib/periods.ts. The server's own
+ * created_at is kept too, but it cannot say what time it was where you were.
  */
 export async function setDone(
   taskId: string,
   periodKey: string,
   completedOn: string,
+  minute: number,
   done: boolean,
 ): Promise<Result> {
   const { supabase, user } = await requireUser();
@@ -62,6 +64,7 @@ export async function setDone(
         task_id: taskId,
         period_key: periodKey,
         completed_on: completedOn,
+        completed_minute: minute,
       },
       { onConflict: "task_id,period_key", ignoreDuplicates: true },
     );
@@ -145,6 +148,27 @@ export async function setTaskGoal(
   const { error } = await supabase
     .from("tasks")
     .update({ goal_id: goalId })
+    .eq("id", taskId);
+
+  if (error) return { error: error.message };
+  revalidatePath("/");
+  return {};
+}
+
+
+/** Renames a task in place. Its completions are keyed on id, so history holds. */
+export async function renameTask(
+  taskId: string,
+  title: string,
+): Promise<Result> {
+  const trimmed = title.trim();
+  if (!trimmed) return { error: "A task needs a name." };
+  if (trimmed.length > 500) return { error: "That title is too long." };
+
+  const { supabase } = await requireUser();
+  const { error } = await supabase
+    .from("tasks")
+    .update({ title: trimmed })
     .eq("id", taskId);
 
   if (error) return { error: error.message };

@@ -1,6 +1,7 @@
-import { isoWeekKey, periodKey, toDayKey, fromDayKey } from "../lib/periods";
+import { formatClock, isoWeekKey, minuteOfDay, periodKey, toDayKey, fromDayKey } from "../lib/periods";
 import {
-  activeOn, averageRatio, currentStreak, dailyStats, goalProgress, longestStreak, perfectDays,
+  activeOn, averageRatio, busiestHour, currentStreak, dailyStats, goalProgress,
+  longestStreak, perfectDays, taskMinutes, timeOfDay,
 } from "../lib/stats";
 import type { Completion, Goal, Task } from "../lib/types";
 
@@ -15,8 +16,10 @@ function eq(label: string, actual: unknown, expected: unknown) {
 const task = (
   id: string, cadence: Task["cadence"], created: string, goal_id: string | null = null,
 ): Task => ({ id, title: id, cadence, goal_id, archived_at: null, created_at: created });
-const comp = (task_id: string, period_key: string, completed_on: string): Completion =>
-  ({ id: `${task_id}-${period_key}`, task_id, period_key, completed_on });
+const comp = (
+  task_id: string, period_key: string, completed_on: string, completed_minute: number | null = null,
+): Completion =>
+  ({ id: `${task_id}-${period_key}`, task_id, period_key, completed_on, completed_minute });
 
 // --- ISO week keys, cross-checked by hand -----------------------------------
 // 2026-01-01 is a Thursday, so ISO week 1 of 2026 runs Mon Dec 29 2025 – Sun Jan 4.
@@ -128,6 +131,49 @@ eq("archived goals are dropped", archived.length, 0);
 const lateGp = goalProgress([goals[0]], [task("late", "daily", "2026-08-10T09:00:00", "g1")],
   [comp("late", "2026-08-12", "2026-08-12")], new Date(2026, 7, 12), 7);
 eq("a task added mid-window counts only from its creation day", lateGp[0].rate, 1 / 3);
+
+// --- one-time tasks ---------------------------------------------------------
+console.log("\nonce cadence");
+eq("a one-off's key never moves", periodKey("once", new Date(2026, 7, 12)), "once");
+eq("...not even a year later", periodKey("once", new Date(2027, 0, 1)), "once");
+
+// One opportunity, however long it sits there — not one per day like a daily.
+const onceGoal: Goal[] = [{ id: "g9", title: "ship", archived_at: null, created_at: "2026-08-01T09:00:00" }];
+const onceTask = [task("o1", "once", "2026-08-01T09:00:00", "g9")];
+eq("an undone one-off drags its goal to 0",
+  goalProgress(onceGoal, onceTask, [], new Date(2026, 7, 12), 7)[0].rate, 0);
+eq("a done one-off is a single met opportunity",
+  goalProgress(onceGoal, onceTask, [comp("o1", "once", "2026-08-05")], new Date(2026, 7, 12), 7)[0].rate, 1);
+
+// --- clock -----------------------------------------------------------------
+console.log("\nclock");
+eq("minuteOfDay at 8:40pm", minuteOfDay(new Date(2026, 7, 12, 20, 40)), 20 * 60 + 40);
+eq("midnight is zero", minuteOfDay(new Date(2026, 7, 12, 0, 0)), 0);
+eq("formats a round hour without minutes", formatClock(9 * 60), "9am");
+eq("formats noon as 12pm", formatClock(12 * 60), "12pm");
+eq("formats midnight as 12am", formatClock(0), "12am");
+eq("formats 8:40pm", formatClock(20 * 60 + 40), "8:40pm");
+
+// --- time of day ------------------------------------------------------------
+console.log("\ntime of day");
+const timed = [
+  comp("t1", "2026-08-10", "2026-08-10", 9 * 60 + 5),
+  comp("t1", "2026-08-11", "2026-08-11", 9 * 60 + 55),
+  comp("t2", "2026-08-11", "2026-08-11", 21 * 60),
+  comp("t3", "2026-08-12", "2026-08-12", null),
+];
+const curve = timeOfDay(timed);
+eq("always 24 buckets", curve.length, 24);
+eq("both 9am-ish ticks land in hour 9", curve[9].count, 2);
+eq("the evening tick lands in hour 21", curve[21].count, 1);
+eq("an untimed row is skipped, not counted at midnight", curve[0].count, 0);
+eq("busiest hour is the mode", busiestHour(curve), 9);
+eq("no timed data yields no busiest hour", busiestHour(timeOfDay([comp("t3", "k", "d")])), null);
+
+// Per-task minutes come back sorted, and untimed rows are left out.
+eq("taskMinutes returns only that task's timed ticks",
+  JSON.stringify(taskMinutes(timed, "t1")), JSON.stringify([9 * 60 + 5, 9 * 60 + 55]));
+eq("taskMinutes drops untimed rows", taskMinutes(timed, "t3").length, 0);
 
 console.log(`\n${failures === 0 ? "PASS — all assertions held" : `FAIL — ${failures} assertion(s) failed`}`);
 process.exit(failures === 0 ? 0 : 1);
