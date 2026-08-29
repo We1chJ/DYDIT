@@ -35,6 +35,10 @@ export function GoalRows({
   const [draft, setDraft] = useState("");
   const editRef = useRef<HTMLInputElement>(null);
 
+  // Which goal is asking to be confirmed. Inline in the row rather than a
+  // dialog, so the goal you are about to drop stays in front of you.
+  const [confirmingId, setConfirmingId] = useState<string | null>(null);
+
   function commit() {
     const trimmed = value.trim();
     if (trimmed) onAdd(trimmed);
@@ -120,15 +124,45 @@ export function GoalRows({
                 >
                   {activeDays} {activeDays === 1 ? "day" : "days"}
                 </span>
-                <button
-                  type="button"
-                  onClick={() => onRemove(goal.id)}
-                  aria-label={`Remove ${goal.title}`}
-                  title="Remove goal — its tasks are kept"
-                  className="rounded p-0.5 text-faint opacity-0 transition-opacity hover:text-foreground focus-visible:opacity-100 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring group-hover:opacity-100"
-                >
-                  <XIcon className="size-3.5" />
-                </button>
+                {confirmingId === goal.id ? (
+                  <span className="flex shrink-0 items-center gap-1.5 text-[11.5px]">
+                    <span className="text-faint">Remove? Tasks are kept</span>
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setConfirmingId(null);
+                        onRemove(goal.id);
+                      }}
+                      aria-label={`Confirm removing ${goal.title}`}
+                      className="rounded px-1 py-0.5 font-medium text-destructive transition-colors hover:bg-destructive/10 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+                    >
+                      Yes
+                    </button>
+                    <button
+                      type="button"
+                      // Focused rather than Yes, so a stray Enter cancels.
+                      autoFocus
+                      onClick={() => setConfirmingId(null)}
+                      onBlur={() => setConfirmingId(null)}
+                      onKeyDown={(e) => {
+                        if (e.key === "Escape") setConfirmingId(null);
+                      }}
+                      className="rounded px-1 py-0.5 text-muted-foreground transition-colors hover:bg-[var(--hover)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+                    >
+                      Cancel
+                    </button>
+                  </span>
+                ) : (
+                  <button
+                    type="button"
+                    onClick={() => setConfirmingId(goal.id)}
+                    aria-label={`Remove ${goal.title}`}
+                    title="Remove goal — its tasks are kept"
+                    className="rounded p-0.5 text-faint opacity-0 transition-opacity hover:text-foreground focus-visible:opacity-100 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring group-hover:opacity-100"
+                  >
+                    <XIcon className="size-3.5" />
+                  </button>
+                )}
               </div>
 
               <p className="tnum mt-0.5 text-[11.5px] text-faint">

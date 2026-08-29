@@ -26,8 +26,12 @@ type TaskRowProps = {
   onRemove: () => void;
 };
 
-/** Which inline panel, if any, is open under the row. */
-type Panel = "none" | "goal" | "times";
+/**
+ * Which inline panel, if any, the row has open. "remove" is the confirmation:
+ * it lives in the row's own trailing space rather than a dialog, so the thing
+ * you are about to remove stays on screen and in place while you decide.
+ */
+type Panel = "none" | "goal" | "times" | "remove";
 
 export function TaskRow({
   title,
@@ -156,31 +160,57 @@ export function TaskRow({
           </span>
         )}
 
-        {/*
-          Both trailing controls stay invisible until the row is hovered or
-          focused, so a list at rest is just titles and checkboxes.
-        */}
-        <button
-          type="button"
-          onClick={() => setPanel((p) => (p === "times" ? "none" : "times"))}
-          aria-expanded={panel === "times"}
-          aria-label={`When ${title} usually gets done`}
-          title="When this usually gets done"
-          className="shrink-0 rounded p-0.5 text-faint opacity-0 transition-opacity hover:text-foreground focus-visible:opacity-100 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring group-hover:opacity-100"
-        >
-          <ClockIcon className="size-3.5" />
-        </button>
+        {panel === "remove" ? (
+          <span className="flex shrink-0 items-center gap-1.5 text-[11.5px]">
+            <span className="text-faint">Remove?</span>
+            <button
+              type="button"
+              onClick={onRemove}
+              aria-label={`Confirm removing ${title}`}
+              className="rounded px-1 py-0.5 font-medium text-destructive transition-colors hover:bg-destructive/10 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+            >
+              Yes
+            </button>
+            <button
+              type="button"
+              // Focused rather than Yes, so a stray Enter cancels instead of
+              // removing, and so blurring the row can dismiss the prompt.
+              autoFocus
+              onClick={() => setPanel("none")}
+              className="rounded px-1 py-0.5 text-muted-foreground transition-colors hover:bg-[var(--hover)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+            >
+              Cancel
+            </button>
+          </span>
+        ) : (
+          <>
+            {/*
+              Both trailing controls stay invisible until the row is hovered or
+              focused, so a list at rest is just titles and checkboxes.
+            */}
+            <button
+              type="button"
+              onClick={() => setPanel((p) => (p === "times" ? "none" : "times"))}
+              aria-expanded={panel === "times"}
+              aria-label={`When ${title} usually gets done`}
+              title="When this usually gets done"
+              className="shrink-0 rounded p-0.5 text-faint opacity-0 transition-opacity hover:text-foreground focus-visible:opacity-100 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring group-hover:opacity-100"
+            >
+              <ClockIcon className="size-3.5" />
+            </button>
 
-        <button
-          type="button"
-          onClick={onRemove}
-          disabled={pending}
-          aria-label={`Remove ${title}`}
-          title="Remove — past completions are kept"
-          className="shrink-0 rounded p-0.5 text-faint opacity-0 transition-opacity hover:text-foreground focus-visible:opacity-100 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring group-hover:opacity-100"
-        >
-          <XIcon className="size-3.5" />
-        </button>
+            <button
+              type="button"
+              onClick={() => setPanel("remove")}
+              disabled={pending}
+              aria-label={`Remove ${title}`}
+              title="Remove — past completions are kept"
+              className="shrink-0 rounded p-0.5 text-faint opacity-0 transition-opacity hover:text-foreground focus-visible:opacity-100 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring group-hover:opacity-100"
+            >
+              <XIcon className="size-3.5" />
+            </button>
+          </>
+        )}
       </div>
 
       {panel === "goal" ? (
