@@ -12,6 +12,7 @@ import {
   addTask,
   removeGoal,
   removeTask,
+  renameGoal,
   renameTask,
   setDone,
   setTaskGoal,
@@ -288,6 +289,30 @@ export function Dashboard({
     });
   }
 
+  function handleRenameGoal(goalId: string, title: string) {
+    bumpChanges();
+    const previous = localGoals.find((g) => g.id === goalId)?.title ?? title;
+    const setTitle = (t: string) =>
+      setLocalGoals((prev) =>
+        prev.map((g) => (g.id === goalId ? { ...g, title: t } : g)),
+      );
+    setTitle(title);
+    if (goalId.startsWith(OPTIMISTIC)) return;
+
+    startTransition(async () => {
+      try {
+        const res = await renameGoal(goalId, title);
+        if (res.error) {
+          setError(res.error);
+          setTitle(previous);
+        }
+      } catch (e) {
+        setError(e instanceof Error ? e.message : "Couldn't rename that goal.");
+        setTitle(previous);
+      }
+    });
+  }
+
   function handleRemoveGoal(goalId: string) {
     bumpChanges();
     setLocalGoals((prev) => prev.filter((g) => g.id !== goalId));
@@ -530,6 +555,7 @@ export function Dashboard({
           <GoalRows
             stats={goalRows}
             onAdd={handleAddGoal}
+            onRename={handleRenameGoal}
             onRemove={handleRemoveGoal}
           />
         ) : (

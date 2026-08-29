@@ -175,3 +175,23 @@ export async function renameTask(
   revalidatePath("/");
   return {};
 }
+
+/** Renames a goal in place. Its tasks point at the id, so links are unaffected. */
+export async function renameGoal(
+  goalId: string,
+  title: string,
+): Promise<Result> {
+  const trimmed = title.trim();
+  if (!trimmed) return { error: "A goal needs a name." };
+  if (trimmed.length > 200) return { error: "That goal name is too long." };
+
+  const { supabase } = await requireUser();
+  const { error } = await supabase
+    .from("goals")
+    .update({ title: trimmed })
+    .eq("id", goalId);
+
+  if (error) return { error: error.message };
+  revalidatePath("/");
+  return {};
+}

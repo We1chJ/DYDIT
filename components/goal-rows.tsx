@@ -7,6 +7,7 @@ import type { GoalStat } from "@/lib/stats";
 type GoalRowsProps = {
   stats: GoalStat[];
   onAdd: (title: string) => void;
+  onRename: (goalId: string, title: string) => void;
   onRemove: (goalId: string) => void;
 };
 
@@ -18,16 +19,41 @@ type GoalRowsProps = {
  * then imply you were approaching it. What can be said honestly is how long
  * you have kept at it — days you fed it, out of days since you started.
  */
-export function GoalRows({ stats, onAdd, onRemove }: GoalRowsProps) {
+export function GoalRows({
+  stats,
+  onAdd,
+  onRename,
+  onRemove,
+}: GoalRowsProps) {
   const [adding, setAdding] = useState(false);
   const [value, setValue] = useState("");
   const inputRef = useRef<HTMLInputElement>(null);
+
+  // Only one title can be under the cursor at a time, so a single id and a
+  // single draft cover the whole list without a component per row.
+  const [editingId, setEditingId] = useState<string | null>(null);
+  const [draft, setDraft] = useState("");
+  const editRef = useRef<HTMLInputElement>(null);
 
   function commit() {
     const trimmed = value.trim();
     if (trimmed) onAdd(trimmed);
     setValue("");
     setAdding(false);
+  }
+
+  function openEditor(id: string, title: string) {
+    setDraft(title);
+    setEditingId(id);
+    requestAnimationFrame(() => editRef.current?.select());
+  }
+
+  function commitRename(id: string, was: string) {
+    setEditingId(null);
+    const trimmed = draft.trim();
+    // An empty name would leave the row with nothing to click, and renaming to
+    // what it already says is a write for nothing.
+    if (trimmed && trimmed !== was) onRename(id, trimmed);
   }
 
   return (
@@ -59,9 +85,35 @@ export function GoalRows({ stats, onAdd, onRemove }: GoalRowsProps) {
                 >
                   {i + 1}
                 </span>
-                <span className="truncate text-[14px] font-medium text-foreground">
-                  {goal.title}
-                </span>
+                {editingId === goal.id ? (
+                  <input
+                    ref={editRef}
+                    value={draft}
+                    onChange={(e) => setDraft(e.target.value)}
+                    onBlur={() => commitRename(goal.id, goal.title)}
+                    onKeyDown={(e) => {
+                      if (e.key === "Enter") {
+                        e.preventDefault();
+                        commitRename(goal.id, goal.title);
+                      }
+                      if (e.key === "Escape") {
+                        e.preventDefault();
+                        setEditingId(null);
+                      }
+                    }}
+                    aria-label={`Rename ${goal.title}`}
+                    className="min-w-0 flex-1 bg-transparent text-[14px] font-medium text-foreground focus:outline-none"
+                  />
+                ) : (
+                  <button
+                    type="button"
+                    onClick={() => openEditor(goal.id, goal.title)}
+                    title="Click to rename"
+                    className="min-w-0 truncate text-left text-[14px] font-medium text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+                  >
+                    {goal.title}
+                  </button>
+                )}
                 <span
                   key={activeDays}
                   className="anim-num tnum ml-auto shrink-0 text-[13px] font-semibold text-foreground"
