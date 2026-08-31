@@ -46,15 +46,18 @@ export type TabDef = {
 };
 
 /**
- * The one-off list.
+ * The one-off list — the plain to-do list, as opposed to the recurring ones.
  *
  * Deliberately not a tab: the recurring lists are a rhythm you swipe between,
  * whereas whatever came up today wants to be visible at the same time as them,
  * so it gets a card of its own above the strip.
+ *
+ * The cadence stays "once" because that is what the database stores and what
+ * the never-moving period key is named after. Only the heading is friendlier.
  */
 export const ONCE: TabDef = {
   cadence: "once",
-  label: "Once",
+  label: "To-do list",
   resets: "never resets",
   blurb: "Whatever came up. Tick it and it stays ticked until you clear it.",
 };

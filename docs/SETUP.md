@@ -9,11 +9,11 @@ works, and what each chart measures.
 
 - **Two recurring lists as swipeable tabs** — Daily and Weekly — one at a time.
   Swipe, drag, arrow-key, or click a tab; the underline tracks the scroll.
-- **A Once card above them**, for whatever came up. It is a card rather than a
-  third tab so it stays readable alongside the recurring lists instead of
-  taking their place. Tick it and it stays ticked until you clear it.
-- **Checkboxes that reset on their own.** Daily at midnight, Weekly on Monday,
-  Once never.
+- **A To-do list card above them**, for whatever came up. It is a card rather
+  than a third tab so it stays readable alongside the recurring lists instead
+  of taking their place. Tick it and it stays ticked until you clear it.
+- **Checkboxes that reset on their own.** Daily at midnight, Weekly on Monday.
+  The to-do list never resets.
 - **Editable in place.** Click a task's text to rename it; Enter commits,
   Escape reverts.
 - **Long-term goals as counts.** A goal is never checked off. Link tasks to it
