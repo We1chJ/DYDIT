@@ -1,6 +1,6 @@
 import { notFound } from "next/navigation";
 import { Dashboard } from "@/components/dashboard";
-import type { Completion, Goal, Task } from "@/lib/types";
+import { DEFAULT_SETTINGS, type Completion, type Goal, type Task } from "@/lib/types";
 
 function seeded(n: number) {
   const x = Math.sin(n * 12.9898) * 43758.5453;
@@ -146,6 +146,7 @@ export default function PreviewPage() {
       tasks={tasks}
       completions={completions}
       goals={goals}
+      settings={DEFAULT_SETTINGS}
       email="preview@local"
     />
   );

@@ -82,6 +82,25 @@ export function periodKey(cadence: Cadence, d: Date): string {
   }
 }
 
+/**
+ * A moment pushed back to the start of the day it belongs to.
+ *
+ * A day that begins at 3am means 1am on Tuesday is still Monday night. Shifting
+ * the clock back by the start hour makes the ordinary calendar date of the
+ * shifted moment the day it counts for, so every day key in the app can be
+ * derived the same way it always was.
+ */
+export function dayStart(d: Date, startHour: number): Date {
+  const shifted = new Date(d);
+  shifted.setHours(shifted.getHours() - startHour);
+  return shifted;
+}
+
+/** The day key a moment belongs to, for a day beginning at `startHour`. */
+export function logicalDayKey(d: Date, startHour: number): string {
+  return toDayKey(dayStart(d, startHour));
+}
+
 /** Minutes since local midnight, 0-1439. */
 export function minuteOfDay(d: Date): number {
   return d.getHours() * 60 + d.getMinutes();

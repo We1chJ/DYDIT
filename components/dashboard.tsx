@@ -13,6 +13,7 @@ import {
   removeGoal,
   removeTask,
   renameGoal,
+  saveDayStart,
   renameTask,
   setDone,
   setTaskGoal,
@@ -33,6 +34,7 @@ import {
   formatClock,
   formatDayLong,
   fromDayKey,
+  logicalDayKey,
   minuteOfDay,
   monthKey,
   periodKey,
@@ -58,6 +60,7 @@ import {
   type Cadence,
   type Completion,
   type Goal,
+  type Settings,
   type Task,
 } from "@/lib/types";
 
@@ -79,6 +82,7 @@ type DashboardProps = {
   tasks: Task[];
   completions: Completion[];
   goals: Goal[];
+  settings: Settings;
   email: string;
 };
 
@@ -108,8 +112,16 @@ export function Dashboard({
   tasks,
   completions,
   goals,
+  settings,
   email,
 }: DashboardProps) {
+  // Mirrored so the change shows the instant it is picked, like everything else.
+  const [dayStartHour, setDayStartHour] = useState(settings.day_start_hour);
+  const [seenHour, setSeenHour] = useState(settings.day_start_hour);
+  if (seenHour !== settings.day_start_hour) {
+    setSeenHour(settings.day_start_hour);
+    setDayStartHour(settings.day_start_hour);
+  }
   /*
    * The current day is null until mount on purpose.
    *
@@ -118,11 +130,11 @@ export function Dashboard({
    * 7pm simply because the server had already rolled over. So the shell renders
    * immediately and anything date-dependent waits one frame for the browser.
    */
-  const todayKey = useSyncExternalStore(
-    subscribeToClock,
-    () => toDayKey(new Date()),
-    () => null,
+  const readToday = useCallback(
+    () => logicalDayKey(new Date(), dayStartHour),
+    [dayStartHour],
   );
+  const todayKey = useSyncExternalStore(subscribeToClock, readToday, () => null);
   const today = useMemo(
     () => (todayKey ? fromDayKey(todayKey) : null),
     [todayKey],
@@ -177,14 +189,14 @@ export function Dashboard({
 
   const goalRows = useMemo(() => {
     if (!today) return [];
-    return goalStats(localGoals, localTasks, localComps, today);
-  }, [localGoals, localTasks, localComps, today]);
+    return goalStats(localGoals, localTasks, localComps, today, dayStartHour);
+  }, [localGoals, localTasks, localComps, today, dayStartHour]);
 
   const stats = useMemo(() => {
     if (!today || !todayKey) return null;
     // A week of slack so the heatmap's first (Monday-aligned) column is covered.
     const fromKey = toDayKey(addDays(today, -(HEATMAP_WEEKS * 7 + 7)));
-    const days = dailyStats(localTasks, localComps, fromKey, todayKey);
+    const days = dailyStats(localTasks, localComps, fromKey, todayKey, dayStartHour);
     const todayStat = days[days.length - 1];
     const month = inMonth(days, monthKey(today));
 
@@ -199,7 +211,7 @@ export function Dashboard({
       index: completionIndex(localComps),
       hours: timeOfDay(localComps),
     };
-  }, [today, todayKey, localTasks, localComps]);
+  }, [today, todayKey, localTasks, localComps, dayStartHour]);
 
   function handleToggle(task: Task, next: boolean) {
     if (!today) return;
@@ -285,6 +297,30 @@ export function Dashboard({
       } catch (e) {
         setError(e instanceof Error ? e.message : "Couldn't add that goal.");
         setLocalGoals((prev) => prev.filter((g) => g.id !== optimistic.id));
+      }
+    });
+  }
+
+  /**
+   * Moves where the day is cut. The timezone rides along because this is the
+   * one moment we are certainly in the browser and can read it for free.
+   */
+  function handleDayStart(hour: number) {
+    bumpChanges();
+    const previous = dayStartHour;
+    setDayStartHour(hour);
+
+    startTransition(async () => {
+      try {
+        const zone = Intl.DateTimeFormat().resolvedOptions().timeZone ?? "";
+        const res = await saveDayStart(hour, zone);
+        if (res.error) {
+          setError(res.error);
+          setDayStartHour(previous);
+        }
+      } catch (e) {
+        setError(e instanceof Error ? e.message : "Couldn't save that.");
+        setDayStartHour(previous);
       }
     });
   }
@@ -603,7 +639,10 @@ export function Dashboard({
           const meta: TabMeta[] = lists.map(({ tab, tasks, done }) => ({
             key: tab.cadence,
             label: tab.label,
-            resets: tab.resets,
+            resets:
+              tab.cadence === "daily"
+                ? `resets ${formatClock(dayStartHour * 60)}`
+                : tab.resets,
             done,
             total: tasks.length,
           }));
@@ -664,6 +703,28 @@ export function Dashboard({
           );
         })()}
       </section>
+
+      {/*
+        The one setting there is. It lives at the foot rather than behind a gear
+        because there is exactly one of it, and hiding a single control behind a
+        screen of its own costs more than it saves.
+      */}
+      <footer className="mt-12 flex flex-wrap items-center justify-center gap-x-2 gap-y-1 text-[12px] text-faint">
+        <label htmlFor="day-start">My day starts at</label>
+        <select
+          id="day-start"
+          value={dayStartHour}
+          onChange={(e) => handleDayStart(Number(e.target.value))}
+          className="rounded-md border border-border bg-card px-1.5 py-1 text-[12px] text-muted-foreground transition-colors hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+        >
+          {Array.from({ length: 24 }, (_, h) => (
+            <option key={h} value={h}>
+              {formatClock(h * 60)}
+            </option>
+          ))}
+        </select>
+        <span>— anything ticked before then counts for the night before</span>
+      </footer>
     </div>
   );
 }

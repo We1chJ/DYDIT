@@ -3,7 +3,7 @@ import { Dashboard } from "@/components/dashboard";
 import { isAllowed } from "@/lib/allowlist";
 import { supabaseEnvOrNull } from "@/lib/supabase/env";
 import { createClient } from "@/lib/supabase/server";
-import type { Completion, Goal, Task } from "@/lib/types";
+import { DEFAULT_SETTINGS, type Completion, type Goal, type Settings, type Task } from "@/lib/types";
 
 // Always reflects the live rows; a cached dashboard would show stale checkboxes.
 export const dynamic = "force-dynamic";
@@ -30,7 +30,7 @@ export default async function Page() {
    * completions still belong in the history, so the charts need them to work
    * out what each day's denominator actually was.
    */
-  const [tasksRes, completionsRes, goalsRes] = await Promise.all([
+  const [tasksRes, completionsRes, goalsRes, settingsRes] = await Promise.all([
     supabase
       .from("tasks")
       .select("id, title, cadence, goal_id, archived_at, created_at")
@@ -43,7 +43,16 @@ export default async function Page() {
       .from("goals")
       .select("id, title, archived_at, created_at")
       .order("created_at", { ascending: true }),
+    // maybeSingle: there is no row until something is changed from the default.
+    supabase
+      .from("settings")
+      .select("day_start_hour, timezone")
+      .maybeSingle(),
   ]);
+
+  // A missing row is the expected state, not an error, so only a real failure
+  // is worth surfacing — the defaults cover the rest.
+  const settings: Settings = settingsRes.data ?? DEFAULT_SETTINGS;
 
   if (tasksRes.error || completionsRes.error || goalsRes.error) {
     const message =
@@ -67,6 +76,7 @@ export default async function Page() {
       tasks={(tasksRes.data ?? []) as Task[]}
       completions={(completionsRes.data ?? []) as Completion[]}
       goals={(goalsRes.data ?? []) as Goal[]}
+      settings={settings}
       email={user.email ?? ""}
     />
   );

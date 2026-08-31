@@ -1,4 +1,4 @@
-import { formatClock, isoWeekKey, minuteOfDay, periodKey, toDayKey, fromDayKey } from "../lib/periods";
+import { formatClock, isoWeekKey, logicalDayKey, minuteOfDay, periodKey, toDayKey, fromDayKey } from "../lib/periods";
 import {
   activeOn, averageRatio, busiestHour, currentStreak, dailyStats, goalStats,
   longestStreak, perfectDays, taskMinutes, timeOfDay,
@@ -55,15 +55,15 @@ const completions = [
 ];
 
 console.log("\nactiveOn");
-eq("B not active before it existed", activeOn(tasks[1], "2026-08-04"), false);
-eq("B active on creation day", activeOn(tasks[1], "2026-08-05"), true);
+eq("B not active before it existed", activeOn(tasks[1], "2026-08-04", 0), false);
+eq("B active on creation day", activeOn(tasks[1], "2026-08-05", 0), true);
 eq("archived task drops out on archive day",
-  activeOn({ ...tasks[0], archived_at: "2026-08-11T09:00:00" }, "2026-08-11"), false);
+  activeOn({ ...tasks[0], archived_at: "2026-08-11T09:00:00" }, "2026-08-11", 0), false);
 eq("archived task counted the day before",
-  activeOn({ ...tasks[0], archived_at: "2026-08-11T09:00:00" }, "2026-08-10"), true);
+  activeOn({ ...tasks[0], archived_at: "2026-08-11T09:00:00" }, "2026-08-10", 0), true);
 
 console.log("\ndailyStats  Aug 8 – Aug 12");
-const days = dailyStats(tasks, completions, "2026-08-08", "2026-08-12");
+const days = dailyStats(tasks, completions, "2026-08-08", "2026-08-12", 0);
 eq("five days", days.length, 5);
 eq("Aug 8  0/2", [days[0].done, days[0].total, days[0].level], [0, 2, 0]);
 eq("Aug 9  0/2", [days[1].done, days[1].total, days[1].level], [0, 2, 0]);
@@ -80,11 +80,11 @@ eq("perfect days = 2", perfectDays(days), 2);
 eq("average = (0+0+.5+1+1)/5 = 0.5", averageRatio(days), 0.5);
 
 // Unfinished today must not break the streak that ran through yesterday.
-const openToday = dailyStats(tasks, completions, "2026-08-08", "2026-08-13");
+const openToday = dailyStats(tasks, completions, "2026-08-08", "2026-08-13", 0);
 eq("today unfinished -> streak still 2", currentStreak(openToday, "2026-08-13"), 2);
 
 // A day with no daily tasks at all is "no data", not a zero.
-const noneYet = dailyStats(tasks, completions, "2026-07-28", "2026-07-30");
+const noneYet = dailyStats(tasks, completions, "2026-07-28", "2026-07-30", 0);
 eq("pre-history ratio is null", noneYet.map((x) => x.ratio), [null, null, null]);
 eq("pre-history excluded from average", averageRatio(noneYet), null);
 
@@ -112,7 +112,7 @@ const gComps = [
   // Belongs to no goal - must not count toward g1.
   comp("unlinked", "2026-08-12", "2026-08-12"),
 ];
-const gs = goalStats(goals, gTasks, gComps, new Date(2026, 7, 12));
+const gs = goalStats(goals, gTasks, gComps, new Date(2026, 7, 12), 0);
 
 eq("one entry per live goal", gs.length, 2);
 eq("g1 active on 3 distinct days", gs[0].activeDays, 3);
@@ -128,21 +128,21 @@ eq("goal with no tasks is not due", [gs[1].dueDone, gs[1].dueTotal], [0, 0]);
 // An untouched today must not break a run that is otherwise current.
 const gapComps = [comp("anki", "2026-08-11", "2026-08-11"), comp("anki", "2026-08-10", "2026-08-10")];
 eq("an untouched today leaves the streak standing",
-  goalStats([goals[0]], gTasks, gapComps, new Date(2026, 7, 12))[0].streak, 2);
+  goalStats([goals[0]], gTasks, gapComps, new Date(2026, 7, 12), 0)[0].streak, 2);
 
 // Two days idle does break it.
 const staleComps = [comp("anki", "2026-08-09", "2026-08-09")];
 eq("a missed day ends the streak",
-  goalStats([goals[0]], gTasks, staleComps, new Date(2026, 7, 12))[0].streak, 0);
+  goalStats([goals[0]], gTasks, staleComps, new Date(2026, 7, 12), 0)[0].streak, 0);
 
 // A goal made today is one day old, never zero.
 eq("a goal created today is one day old",
   goalStats([goal("g3", "New")].map((g) => ({ ...g, created_at: "2026-08-12T09:00:00" })),
-    [], [], new Date(2026, 7, 12))[0].ageDays, 1);
+    [], [], new Date(2026, 7, 12), 0)[0].ageDays, 1);
 
 const archived = goalStats(
   [{ ...goals[0], archived_at: "2026-08-01T09:00:00" }], gTasks, gComps,
-  new Date(2026, 7, 12));
+  new Date(2026, 7, 12), 0);
 eq("archived goals are dropped", archived.length, 0);
 
 // --- one-time tasks ---------------------------------------------------------
@@ -154,9 +154,9 @@ eq("...not even a year later", periodKey("once", new Date(2027, 0, 1)), "once");
 const onceGoal: Goal[] = [{ id: "g9", title: "ship", archived_at: null, created_at: "2026-08-01T09:00:00" }];
 const onceTask = [task("o1", "once", "2026-08-01T09:00:00", "g9")];
 eq("an undone one-off leaves its goal with no active days",
-  goalStats(onceGoal, onceTask, [], new Date(2026, 7, 12))[0].activeDays, 0);
+  goalStats(onceGoal, onceTask, [], new Date(2026, 7, 12), 0)[0].activeDays, 0);
 eq("a done one-off marks the day it was ticked",
-  goalStats(onceGoal, onceTask, [comp("o1", "once", "2026-08-05")], new Date(2026, 7, 12))[0].activeDays, 1);
+  goalStats(onceGoal, onceTask, [comp("o1", "once", "2026-08-05")], new Date(2026, 7, 12), 0)[0].activeDays, 1);
 
 // --- clock -----------------------------------------------------------------
 console.log("\nclock");
@@ -187,6 +187,26 @@ eq("no timed data yields no busiest hour", busiestHour(timeOfDay([comp("t3", "k"
 eq("taskMinutes returns only that task's timed ticks",
   JSON.stringify(taskMinutes(timed, "t1")), JSON.stringify([9 * 60 + 5, 9 * 60 + 55]));
 eq("taskMinutes drops untimed rows", taskMinutes(timed, "t3").length, 0);
+
+// --- where the day is cut ----------------------------------------------------
+console.log("\nday start hour");
+// With a 3am boundary, 1am on the 12th still belongs to the 11th.
+eq("1am counts for the night before", logicalDayKey(new Date(2026, 7, 12, 1, 30), 3), "2026-08-11");
+eq("2:59am is still the day before", logicalDayKey(new Date(2026, 7, 12, 2, 59), 3), "2026-08-11");
+eq("3am starts the new day", logicalDayKey(new Date(2026, 7, 12, 3, 0), 3), "2026-08-12");
+eq("the evening is unaffected", logicalDayKey(new Date(2026, 7, 12, 23, 0), 3), "2026-08-12");
+// Hour 0 must behave exactly as the plain calendar day always did.
+eq("hour 0 is the calendar day", logicalDayKey(new Date(2026, 7, 12, 1, 30), 0), "2026-08-12");
+eq("hour 0 matches toDayKey", logicalDayKey(new Date(2026, 7, 12, 1, 30), 0), toDayKey(new Date(2026, 7, 12, 1, 30)));
+// Crossing a month boundary backwards.
+eq("1am on the 1st belongs to the last of the month before",
+  logicalDayKey(new Date(2026, 8, 1, 1, 0), 3), "2026-08-31");
+
+// A task created at 1am is active for the day it was really made: the night
+// before, not the calendar date the clock had already rolled to.
+const nightTask = task("n1", "daily", "2026-08-12T01:30:00");
+eq("a 1am task counts from the night before", activeOn(nightTask, "2026-08-11", 3), true);
+eq("...and not from a day earlier still", activeOn(nightTask, "2026-08-10", 3), false);
 
 console.log(`\n${failures === 0 ? "PASS — all assertions held" : `FAIL — ${failures} assertion(s) failed`}`);
 process.exit(failures === 0 ? 0 : 1);

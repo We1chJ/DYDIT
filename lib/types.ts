@@ -36,6 +36,22 @@ export type Completion = {
   completed_minute: number | null;
 };
 
+/**
+ * Per-person settings. Kept small on purpose — anything derivable is derived.
+ */
+export type Settings = {
+  /** The hour a new day begins, 0-23. Ticks before it count for the day before. */
+  day_start_hour: number;
+  /** IANA zone captured from the browser. Nothing reads it yet. */
+  timezone: string | null;
+};
+
+/** Used before a settings row exists, and by the preview harness. */
+export const DEFAULT_SETTINGS: Settings = {
+  day_start_hour: 3,
+  timezone: null,
+};
+
 export type TabDef = {
   cadence: Cadence;
   label: string;

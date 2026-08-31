@@ -198,3 +198,36 @@ export async function renameGoal(
   revalidatePath("/");
   return {};
 }
+
+/**
+ * Moves the hour a day begins at.
+ *
+ * Nothing stored changes shape — completions keep the keys they were written
+ * under. What changes is which day *future* ticks land on, and how the history
+ * is bucketed when read back. Moving the boundary therefore re-reads the past
+ * as well as the future, which is the intent: it is one answer to "when does my
+ * day end", not a per-tick decision.
+ */
+export async function saveDayStart(
+  hour: number,
+  timezone: string,
+): Promise<Result> {
+  if (!Number.isInteger(hour) || hour < 0 || hour > 23) {
+    return { error: "Pick an hour between 0 and 23." };
+  }
+
+  const { supabase, user } = await requireUser();
+  const { error } = await supabase.from("settings").upsert(
+    {
+      user_id: user.id,
+      day_start_hour: hour,
+      timezone: timezone || null,
+      updated_at: new Date().toISOString(),
+    },
+    { onConflict: "user_id" },
+  );
+
+  if (error) return { error: error.message };
+  revalidatePath("/");
+  return {};
+}

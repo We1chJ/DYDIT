@@ -1,4 +1,4 @@
-import { addDays, daysBetween, fromDayKey, periodKey, toDayKey } from "./periods";
+import { addDays, daysBetween, fromDayKey, logicalDayKey, periodKey, toDayKey } from "./periods";
 import type { Completion, Goal, Task } from "./types";
 
 /*
@@ -38,11 +38,17 @@ export function isDone(
  * Was this task alive on that day? A task created today must not drag down
  * last week's completion rate, and an archived one must not drag down today's.
  */
-export function activeOn(task: Task, dayKey: string): boolean {
-  const created = toDayKey(new Date(task.created_at));
+export function activeOn(
+  task: Task,
+  dayKey: string,
+  dayStartHour: number,
+): boolean {
+  // Both timestamps are server UTC; which local day they land on depends on
+  // where the day is cut, so they resolve the same way every other day does.
+  const created = logicalDayKey(new Date(task.created_at), dayStartHour);
   if (dayKey < created) return false;
   if (task.archived_at) {
-    const archived = toDayKey(new Date(task.archived_at));
+    const archived = logicalDayKey(new Date(task.archived_at), dayStartHour);
     if (dayKey >= archived) return false;
   }
   return true;
@@ -69,6 +75,7 @@ export function dailyStats(
   completions: Completion[],
   fromKey: string,
   toKey: string,
+  dayStartHour: number,
 ): DayStat[] {
   const index = completionIndex(completions);
   const dailyTasks = tasks.filter((t) => t.cadence === "daily");
@@ -86,7 +93,7 @@ export function dailyStats(
 
   for (let i = 0; i <= span; i++) {
     const dayKey = toDayKey(addDays(start, i));
-    const active = dailyTasks.filter((t) => activeOn(t, dayKey));
+    const active = dailyTasks.filter((t) => activeOn(t, dayKey, dayStartHour));
     const done = active.filter((t) => isDone(index, t.id, dayKey)).length;
     const total = active.length;
     const ratio = total === 0 ? null : done / total;
@@ -196,6 +203,7 @@ export function goalStats(
   tasks: Task[],
   completions: Completion[],
   today: Date,
+  dayStartHour: number,
 ): GoalStat[] {
   const index = completionIndex(completions);
   const todayKey = toDayKey(today);
@@ -214,7 +222,7 @@ export function goalStats(
         if (ids.has(c.task_id)) activeDayKeys.add(c.completed_on);
       }
 
-      const createdKey = toDayKey(new Date(goal.created_at));
+      const createdKey = logicalDayKey(new Date(goal.created_at), dayStartHour);
       // Inclusive, and floored at 1: a goal made today is one day old, not zero.
       const ageDays = Math.max(1, daysBetween(createdKey, todayKey) + 1);
 
@@ -233,7 +241,7 @@ export function goalStats(
       let dueTotal = 0;
       let dueDone = 0;
       for (const task of linked) {
-        if (!activeOn(task, todayKey)) continue;
+        if (!activeOn(task, todayKey, dayStartHour)) continue;
         dueTotal++;
         if (isDone(index, task.id, periodKey(task.cadence, today))) dueDone++;
       }
