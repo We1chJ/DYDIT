@@ -1,6 +1,7 @@
 "use server";
 
 import { revalidatePath } from "next/cache";
+import { isAllowed } from "@/lib/allowlist";
 import { createClient } from "@/lib/supabase/server";
 import { TAB_BY_CADENCE, type Cadence } from "@/lib/types";
 
@@ -12,6 +13,8 @@ async function requireUser() {
     data: { user },
   } = await supabase.auth.getUser();
   if (!user) throw new Error("Not signed in.");
+  // Every write goes through here, so one check covers all of them.
+  if (!isAllowed(user.email)) throw new Error("This account isn't allowed here.");
   return { supabase, user };
 }
 

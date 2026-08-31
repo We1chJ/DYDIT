@@ -98,6 +98,36 @@ create policy "own completions" on public.completions
   with check (auth.uid() = user_id);
 
 
+
+-- ---------------------------------------------------------------------------
+-- settings — one row per person
+--
+-- day_start_hour is when a new day begins for you. Ticking something at 1am
+-- after working through the night should count for the night before, not for
+-- the day that just started, so the whole app treats "today" as beginning at
+-- this hour rather than at midnight.
+--
+-- timezone is an IANA name captured from the browser. Nothing in the app needs
+-- it today, because every date is computed client-side; it is here so that
+-- anything running on a schedule later can work out which day it is for you
+-- without a browser to ask.
+-- ---------------------------------------------------------------------------
+create table if not exists public.settings (
+  user_id        uuid primary key references auth.users on delete cascade,
+  day_start_hour smallint not null default 3
+                   check (day_start_hour between 0 and 23),
+  timezone       text,
+  updated_at     timestamptz not null default now()
+);
+
+alter table public.settings enable row level security;
+
+drop policy if exists "own settings" on public.settings;
+create policy "own settings" on public.settings
+  for all
+  using (auth.uid() = user_id)
+  with check (auth.uid() = user_id);
+
 -- ---------------------------------------------------------------------------
 -- Upgrades for databases created before these columns existed.
 --

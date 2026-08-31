@@ -1,5 +1,6 @@
 import { redirect } from "next/navigation";
 import { Dashboard } from "@/components/dashboard";
+import { isAllowed } from "@/lib/allowlist";
 import { supabaseEnvOrNull } from "@/lib/supabase/env";
 import { createClient } from "@/lib/supabase/server";
 import type { Completion, Goal, Task } from "@/lib/types";
@@ -19,6 +20,7 @@ export default async function Page() {
     data: { user },
   } = await supabase.auth.getUser();
   if (!user) redirect("/login");
+  if (!isAllowed(user.email)) return <NotAllowed email={user.email} />;
 
   const since = new Date();
   since.setDate(since.getDate() - HISTORY_DAYS);
@@ -116,6 +118,33 @@ function SetupNotice() {
         </a>{" "}
         shows the interface with sample data.
       </p>
+    </main>
+  );
+}
+
+/**
+ * A signed-in account that isn't on the list. Reached only if ALLOWED_EMAILS is
+ * set and someone else's account exists — which the Supabase signup switch is
+ * supposed to prevent in the first place.
+ */
+function NotAllowed({ email }: { email?: string }) {
+  return (
+    <main className="mx-auto max-w-[420px] px-6 py-24">
+      <h1 className="text-[22px] font-semibold tracking-[-0.02em]">
+        Not your list
+      </h1>
+      <p className="mt-2 text-[14px] leading-relaxed text-muted-foreground">
+        {email ? <span className="text-foreground">{email}</span> : "This account"}{" "}
+        isn&rsquo;t allowed on this instance.
+      </p>
+      <form action="/auth/signout" method="post" className="mt-5">
+        <button
+          type="submit"
+          className="rounded-md border border-border px-3 py-1.5 text-[13.5px] text-muted-foreground transition-colors hover:bg-[var(--hover)] hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+        >
+          Sign out
+        </button>
+      </form>
     </main>
   );
 }
