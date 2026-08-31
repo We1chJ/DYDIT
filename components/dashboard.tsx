@@ -13,7 +13,10 @@ import {
   removeGoal,
   removeTask,
   renameGoal,
+  removePushSubscription,
   saveDayStart,
+  savePushSubscription,
+  saveReminder,
   renameTask,
   setDone,
   setTaskGoal,
@@ -22,6 +25,7 @@ import { AddTask } from "@/components/add-task";
 import { GoalRows } from "@/components/goal-rows";
 import { Heatmap } from "@/components/heatmap";
 import { Logo } from "@/components/logo";
+import { ReminderToggle } from "@/components/reminder-toggle";
 import { StatStrip } from "@/components/stat-strip";
 import { TaskRow } from "@/components/task-row";
 import { TaskTabs, type TabMeta } from "@/components/task-tabs";
@@ -323,6 +327,22 @@ export function Dashboard({
         setDayStartHour(previous);
       }
     });
+  }
+
+  const [remindHour, setRemindHour] = useState(settings.remind_hour ?? 21);
+
+  function zone() {
+    return Intl.DateTimeFormat().resolvedOptions().timeZone ?? "";
+  }
+
+  /** Reports an action's error without swallowing it into the console. */
+  async function run(work: () => Promise<{ error?: string }>) {
+    try {
+      const res = await work();
+      if (res.error) setError(res.error);
+    } catch (e) {
+      setError(e instanceof Error ? e.message : "Something went wrong.");
+    }
   }
 
   function handleRenameGoal(goalId: string, title: string) {
@@ -725,6 +745,28 @@ export function Dashboard({
         </select>
         <span>— anything ticked before then counts for the night before</span>
       </footer>
+
+      <div className="mt-2 flex flex-wrap items-center justify-center gap-x-2 gap-y-1 text-[12px] text-faint">
+        <ReminderToggle
+          enabled={settings.remind_enabled}
+          hour={remindHour}
+          onSetHour={(h) => {
+            setRemindHour(h);
+            startTransition(() => {
+              void run(() => saveReminder(true, h, zone()));
+            });
+          }}
+          onSubscribe={async (sub) => {
+            await run(() => savePushSubscription(sub));
+            await run(() => saveReminder(true, remindHour, zone()));
+          }}
+          onUnsubscribe={async (endpoint) => {
+            await run(() => removePushSubscription(endpoint));
+            await run(() => saveReminder(false, remindHour, zone()));
+          }}
+          onError={setError}
+        />
+      </div>
     </div>
   );
 }

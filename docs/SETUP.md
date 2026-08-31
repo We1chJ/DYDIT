@@ -30,6 +30,10 @@ works, and what each chart measures.
 - **Linking by number.** Goals are numbered; end a new task's title with `#2`
   and it links to goal 2, dropping the token from the saved title. Clicking a
   task's goal label re-links it afterwards.
+- **Desktop reminders.** Web push, so a notification arrives at an hour you
+  pick if anything is still outstanding — with the browser closed, on Mac and
+  Windows alike. Granted once per browser, since a push subscription belongs to
+  a browser profile rather than to an account.
 - **Magic-link sign-in**, so the same list follows you between computers.
 
 ## Stack
@@ -237,3 +241,36 @@ npx tsx scripts/stats.test.ts
 
 DYDIT — *did you do it today?* The mark is a to-do box with its top-right corner
 left open, and the check sweeping out through the gap.
+
+---
+
+## Reminders
+
+Web push. The browser vendor's push service does the delivery — Google's for
+Chrome and Edge, Mozilla's for Firefox, Apple's for Safari — so there is no
+per-platform code: the same subscription works on macOS and Windows.
+
+`public/sw.js` is the only part of the app that runs with no tab open. A push
+wakes it, it draws the notification, it sleeps again.
+
+`/api/reminders` is called hourly by the schedule in `vercel.json`. For each
+person who has reminders on, it asks whether it is their chosen hour in their
+own timezone, and whether anything is outstanding for the current period. It
+pushes at most once per period per browser, recorded in `last_notified_key`,
+so the next hour's run stays quiet. Subscriptions the push service reports as
+gone (404 or 410) are deleted rather than retried forever.
+
+The to-do list is deliberately excluded: a one-off has no deadline, and being
+nagged about it every evening is how notifications end up muted.
+
+### Environment
+
+| Variable | What |
+| --- | --- |
+| `NEXT_PUBLIC_VAPID_PUBLIC_KEY` | Identifies your server to the push services. Public by design. |
+| `VAPID_PRIVATE_KEY` | Signs pushes. Secret. |
+| `VAPID_SUBJECT` | A `mailto:` the push services can contact. |
+| `CRON_SECRET` | Presented by the scheduler as a bearer token. |
+| `SUPABASE_SERVICE_ROLE_KEY` | The sender runs with no session, so it cannot use RLS. **Bypasses every policy — never prefix it `NEXT_PUBLIC_`.** |
+
+Generate the VAPID pair with `npx web-push generate-vapid-keys`.

@@ -129,6 +129,49 @@ create policy "own settings" on public.settings
   with check (auth.uid() = user_id);
 
 -- ---------------------------------------------------------------------------
+-- push_subscriptions — one row per browser, not per person
+--
+-- A push subscription belongs to a browser profile on a machine, so Chrome on
+-- the laptop and Chrome on the desktop are two separate rows for the same
+-- person. endpoint is the URL the browser vendor gave us to push to, and is
+-- unique because re-subscribing the same browser must update the row rather
+-- than accumulate duplicates.
+--
+-- last_notified_key is the period key of the most recent reminder sent to this
+-- subscription. It is what stops the scheduler nagging every hour: a reminder
+-- is only sent if the current period is not the one already notified.
+-- ---------------------------------------------------------------------------
+create table if not exists public.push_subscriptions (
+  id                uuid primary key default gen_random_uuid(),
+  user_id           uuid not null references auth.users on delete cascade,
+  endpoint          text not null unique,
+  p256dh            text not null,
+  auth              text not null,
+  -- Free-text, just so the UI can say which machine a row belongs to.
+  label             text,
+  last_notified_key text,
+  created_at        timestamptz not null default now()
+);
+
+create index if not exists push_subscriptions_user_idx
+  on public.push_subscriptions (user_id);
+
+alter table public.push_subscriptions enable row level security;
+
+drop policy if exists "own push subscriptions" on public.push_subscriptions;
+create policy "own push subscriptions" on public.push_subscriptions
+  for all
+  using (auth.uid() = user_id)
+  with check (auth.uid() = user_id);
+
+-- Reminder preferences live alongside the day boundary.
+alter table public.settings
+  add column if not exists remind_hour smallint
+    check (remind_hour is null or remind_hour between 0 and 23);
+alter table public.settings
+  add column if not exists remind_enabled boolean not null default false;
+
+-- ---------------------------------------------------------------------------
 -- Upgrades for databases created before these columns existed.
 --
 -- `create table if not exists` above will not alter a table that is already

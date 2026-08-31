@@ -231,3 +231,84 @@ export async function saveDayStart(
   revalidatePath("/");
   return {};
 }
+
+/* -------------------------------------------------------------------------- */
+/* Reminders                                                                  */
+/* -------------------------------------------------------------------------- */
+
+type PushKeys = { endpoint: string; p256dh: string; auth: string; label: string };
+
+/**
+ * Records a browser's push subscription.
+ *
+ * One row per browser profile, not per person — Chrome on the laptop and Chrome
+ * on the desktop are separate subscriptions to the same account. The endpoint
+ * is unique, so re-subscribing the same browser updates its row rather than
+ * accumulating duplicates that would each deliver the same reminder.
+ */
+export async function savePushSubscription(sub: PushKeys): Promise<Result> {
+  if (!sub.endpoint || !sub.p256dh || !sub.auth) {
+    return { error: "That subscription is incomplete." };
+  }
+
+  const { supabase, user } = await requireUser();
+  const { error } = await supabase.from("push_subscriptions").upsert(
+    {
+      user_id: user.id,
+      endpoint: sub.endpoint,
+      p256dh: sub.p256dh,
+      auth: sub.auth,
+      label: sub.label.slice(0, 120),
+    },
+    { onConflict: "endpoint" },
+  );
+
+  if (error) return { error: error.message };
+  revalidatePath("/");
+  return {};
+}
+
+/** Forgets one browser. Called when reminders are switched off on that machine. */
+export async function removePushSubscription(endpoint: string): Promise<Result> {
+  const { supabase } = await requireUser();
+  const { error } = await supabase
+    .from("push_subscriptions")
+    .delete()
+    .eq("endpoint", endpoint);
+
+  if (error) return { error: error.message };
+  revalidatePath("/");
+  return {};
+}
+
+/**
+ * Turns reminders on or off and says when they should arrive.
+ *
+ * The hour is in your local clock; the scheduler converts using the timezone
+ * stored alongside it, which is why saveDayStart captures that.
+ */
+export async function saveReminder(
+  enabled: boolean,
+  hour: number,
+  timezone: string,
+): Promise<Result> {
+  if (!Number.isInteger(hour) || hour < 0 || hour > 23) {
+    return { error: "Pick an hour between 0 and 23." };
+  }
+
+  const { supabase, user } = await requireUser();
+  const { error } = await supabase.from("settings").upsert(
+    {
+      user_id: user.id,
+      remind_enabled: enabled,
+      remind_hour: hour,
+      timezone: timezone || null,
+      updated_at: new Date().toISOString(),
+    },
+    { onConflict: "user_id" },
+  );
+
+  if (error) return { error: error.message };
+  revalidatePath("/");
+  return {};
+}
