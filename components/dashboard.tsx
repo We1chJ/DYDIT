@@ -10,6 +10,7 @@ import {
 import {
   addGoal,
   addTask,
+  moveTask,
   removeGoal,
   removeTask,
   renameGoal,
@@ -26,6 +27,7 @@ import { GoalRows } from "@/components/goal-rows";
 import { Heatmap } from "@/components/heatmap";
 import { Logo } from "@/components/logo";
 import { ReminderToggle } from "@/components/reminder-toggle";
+import { SortableList } from "@/components/sortable-list";
 import { StatStrip } from "@/components/stat-strip";
 import { TaskRow } from "@/components/task-row";
 import { TaskTabs, type TabMeta } from "@/components/task-tabs";
@@ -33,6 +35,7 @@ import { ThemeToggle } from "@/components/theme-toggle";
 import { TodayDonut } from "@/components/today-donut";
 import { TimeCurve } from "@/components/time-curve";
 import { TrendChart } from "@/components/trend-chart";
+import { compareTasks, orderForMove, sortOrderBetween } from "@/lib/order";
 import {
   addDays,
   formatClock,
@@ -255,6 +258,11 @@ export function Dashboard({
     if (!TAB_BY_CADENCE.has(cadence)) return;
     bumpChanges();
 
+    // A new task lands at the foot of its own list, which the browser can work
+    // out from what is already on screen without asking the server first.
+    const last = localTasks.filter((t) => t.cadence === cadence).at(-1);
+    const order = sortOrderBetween(last?.sort_order ?? null, null);
+
     // Shown immediately under a temporary id; its checkbox stays disabled until
     // the real row arrives, since a completion needs a real task id.
     const optimistic: Task = {
@@ -262,6 +270,7 @@ export function Dashboard({
       title,
       cadence,
       goal_id: goalId,
+      sort_order: order,
       archived_at: null,
       created_at: new Date().toISOString(),
     };
@@ -269,7 +278,7 @@ export function Dashboard({
 
     startTransition(async () => {
       try {
-        const res = await addTask(cadence, title, goalId);
+        const res = await addTask(cadence, title, goalId, order);
         if (res.error) {
           setError(res.error);
           setLocalTasks((prev) => prev.filter((t) => t.id !== optimistic.id));
@@ -395,6 +404,46 @@ export function Dashboard({
         if (res.error) setError(res.error);
       } catch (e) {
         setError(e instanceof Error ? e.message : "Couldn't remove that.");
+      }
+    });
+  }
+
+  /**
+   * Drops a task at a new place in its list.
+   *
+   * `list` is the single list on screen, already filtered by cadence, because
+   * that is what the drop index counts against. Only the moved row is written:
+   * its new sort_order is the midpoint of the two it landed between.
+   */
+  function handleMove(list: Task[], id: string, to: number) {
+    const from = list.findIndex((t) => t.id === id);
+    if (from === -1 || from === to) return;
+    bumpChanges();
+
+    const previous = list[from].sort_order;
+    const order = orderForMove(list, from, to);
+
+    // Re-sorted rather than spliced, so the local mirror ends up in exactly the
+    // order the server will send back — otherwise the row jumps once on save.
+    const place = (value: number | null) =>
+      setLocalTasks((prev) =>
+        prev
+          .map((t) => (t.id === id ? { ...t, sort_order: value } : t))
+          .sort(compareTasks),
+      );
+
+    place(order);
+
+    startTransition(async () => {
+      try {
+        const res = await moveTask(id, order);
+        if (res.error) {
+          setError(res.error);
+          place(previous);
+        }
+      } catch (e) {
+        setError(e instanceof Error ? e.message : "Couldn't move that.");
+        place(previous);
       }
     });
   }
@@ -623,23 +672,34 @@ export function Dashboard({
         {(() => {
           // Rows are identical wherever they appear; only the period key that
           // decides "done" differs between the lists.
-          const rows = (list: Task[], key: string | null) =>
-            list.map((task, i) => (
-              <TaskRow
-                key={task.id}
-                index={i}
-                title={task.title}
-                done={stats && key ? isDone(stats.index, task.id, key) : false}
-                goals={liveGoals}
-                goalId={task.goal_id}
-                minutes={taskMinutes(localComps, task.id)}
-                pending={!today || task.id.startsWith(OPTIMISTIC)}
-                onToggle={(next) => handleToggle(task, next)}
-                onRename={(next) => handleRename(task, next)}
-                onSetGoal={(goalId) => handleSetGoal(task, goalId)}
-                onRemove={() => handleRemove(task)}
-              />
-            ));
+          const rows = (list: Task[], key: string | null) => (
+            <SortableList
+              items={list}
+              getId={(task) => task.id}
+              getLabel={(task) => task.title}
+              // A row that only exists locally has no id the server could move.
+              isLocked={(task) => task.id.startsWith(OPTIMISTIC)}
+              onMove={(id, to) => handleMove(list, id, to)}
+            >
+              {(task, { index, handle, dragging }) => (
+                <TaskRow
+                  index={index}
+                  title={task.title}
+                  done={stats && key ? isDone(stats.index, task.id, key) : false}
+                  goals={liveGoals}
+                  goalId={task.goal_id}
+                  minutes={taskMinutes(localComps, task.id)}
+                  pending={!today || task.id.startsWith(OPTIMISTIC)}
+                  handle={handle}
+                  dragging={dragging}
+                  onToggle={(next) => handleToggle(task, next)}
+                  onRename={(next) => handleRename(task, next)}
+                  onSetGoal={(goalId) => handleSetGoal(task, goalId)}
+                  onRemove={() => handleRemove(task)}
+                />
+              )}
+            </SortableList>
+          );
 
           const onceTasks = liveTasks.filter((t) => t.cadence === "once");
           const onceDone = stats
@@ -670,7 +730,7 @@ export function Dashboard({
           const panels = lists.map(({ tab, tasks, key }) => (
             <div key={tab.cadence} className="px-1">
               {tasks.length === 0 ? (
-                <p className="px-2 py-2 text-[13px] text-faint">{tab.blurb}</p>
+                <p className="py-2 pl-8 pr-2 text-[13px] text-faint">{tab.blurb}</p>
               ) : (
                 rows(tasks, key)
               )}
@@ -704,7 +764,7 @@ export function Dashboard({
                 {/* Pulled back so the checkboxes line up with the heading. */}
                 <div className="-mx-2">
                   {onceTasks.length === 0 ? (
-                    <p className="px-2 py-1 text-[13px] text-faint">
+                    <p className="py-1 pl-8 pr-2 text-[13px] text-faint">
                       {ONCE.blurb}
                     </p>
                   ) : (

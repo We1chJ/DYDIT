@@ -22,6 +22,9 @@ export async function addTask(
   cadence: Cadence,
   title: string,
   goalId: string | null = null,
+  // Worked out in the browser from the list already on screen, which is the
+  // only place the new row's neighbours are known without a second round trip.
+  sortOrder: number | null = null,
 ): Promise<Result> {
   const trimmed = title.trim();
   if (!trimmed) return { error: "Give the task a name." };
@@ -30,6 +33,9 @@ export async function addTask(
   // Checked against the known tabs so an arbitrary string can't reach the
   // insert and trip the CHECK constraint.
   if (!TAB_BY_CADENCE.has(cadence)) return { error: "Unknown list." };
+  if (sortOrder !== null && !Number.isFinite(sortOrder)) {
+    return { error: "That position isn't a number." };
+  }
 
   const { supabase, user } = await requireUser();
   const { error } = await supabase.from("tasks").insert({
@@ -37,6 +43,7 @@ export async function addTask(
     title: trimmed,
     cadence,
     goal_id: goalId,
+    sort_order: sortOrder,
   });
 
   if (error) return { error: error.message };
@@ -158,6 +165,32 @@ export async function setTaskGoal(
   return {};
 }
 
+
+/**
+ * Drops a task at a new spot in its list.
+ *
+ * Only the one row moves. sortOrder is a fractional index computed in the
+ * browser from the neighbours it landed between — the server has no opinion
+ * about where things go, it just records the number.
+ */
+export async function moveTask(
+  taskId: string,
+  sortOrder: number,
+): Promise<Result> {
+  if (!Number.isFinite(sortOrder)) {
+    return { error: "That position isn't a number." };
+  }
+
+  const { supabase } = await requireUser();
+  const { error } = await supabase
+    .from("tasks")
+    .update({ sort_order: sortOrder })
+    .eq("id", taskId);
+
+  if (error) return { error: error.message };
+  revalidatePath("/");
+  return {};
+}
 
 /** Renames a task in place. Its completions are keyed on id, so history holds. */
 export async function renameTask(

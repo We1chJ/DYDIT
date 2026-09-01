@@ -33,7 +33,10 @@ export default async function Page() {
   const [tasksRes, completionsRes, goalsRes, settingsRes] = await Promise.all([
     supabase
       .from("tasks")
-      .select("id, title, cadence, goal_id, archived_at, created_at")
+      .select("id, title, cadence, goal_id, sort_order, archived_at, created_at")
+      // Manual order first, creation order underneath it — see lib/order.ts,
+      // whose comparator has to stay in step with these two lines.
+      .order("sort_order", { ascending: true, nullsFirst: false })
       .order("created_at", { ascending: true }),
     supabase
       .from("completions")

@@ -41,6 +41,8 @@ const tasks: Task[] = (
   title,
   cadence,
   goal_id,
+  // Numbered straight down the fixture, which is the order it is written in.
+  sort_order: i + 1,
   archived_at: null,
   created_at: new Date(start.getTime() + i * 86400000).toISOString(),
 }));

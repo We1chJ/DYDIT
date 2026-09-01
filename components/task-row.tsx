@@ -20,6 +20,10 @@ type TaskRowProps = {
   goalId?: string | null;
   /** Every timed tick of this task, as minutes since local midnight. */
   minutes: number[];
+  /** The drag grip, already wired by the list. Null when the row can't move. */
+  handle?: React.ReactNode;
+  /** True while this is the row being carried. */
+  dragging?: boolean;
   onToggle: (next: boolean) => void;
   onRename: (title: string) => void;
   onSetGoal: (goalId: string | null) => void;
@@ -41,6 +45,8 @@ export function TaskRow({
   goals,
   goalId = null,
   minutes,
+  handle = null,
+  dragging = false,
   onToggle,
   onRename,
   onSetGoal,
@@ -88,7 +94,16 @@ export function TaskRow({
         if (e.key === "Escape" && panel !== "none") setPanel("none");
       }}
     >
-      <div className="group flex items-center gap-2.5 rounded-md px-2 py-[5px] transition-colors hover:bg-[var(--hover)]">
+      <div
+        className={`group flex items-center gap-2.5 rounded-md px-2 py-[5px] transition-colors ${
+          dragging
+            ? "bg-card shadow-lg ring-1 ring-border"
+            : "hover:bg-[var(--hover)]"
+        }`}
+      >
+        {/* The slot is always there, so picking a row up never shifts the list. */}
+        <span className="size-3.5 shrink-0">{handle}</span>
+
         <Checkbox
           checked={done}
           disabled={pending}
@@ -214,13 +229,13 @@ export function TaskRow({
       </div>
 
       {panel === "goal" ? (
-        <div className="px-2 pb-1.5 pl-9">
+        <div className="px-2 pb-1.5 pl-15">
           <GoalChips goals={goals} selected={goalId} onSelect={pickGoal} />
         </div>
       ) : null}
 
       {panel === "times" ? (
-        <div className="px-2 pb-2 pl-9 pr-8">
+        <div className="px-2 pb-2 pl-15 pr-8">
           <TaskTimes minutes={minutes} />
         </div>
       ) : null}

@@ -3,6 +3,7 @@ import {
   activeOn, averageRatio, busiestHour, currentStreak, dailyStats, goalStats,
   longestStreak, perfectDays, taskMinutes, timeOfDay,
 } from "../lib/stats";
+import { compareTasks, orderForMove, sortOrderBetween } from "../lib/order";
 import type { Completion, Goal, Task } from "../lib/types";
 
 let failures = 0;
@@ -15,7 +16,8 @@ function eq(label: string, actual: unknown, expected: unknown) {
 
 const task = (
   id: string, cadence: Task["cadence"], created: string, goal_id: string | null = null,
-): Task => ({ id, title: id, cadence, goal_id, archived_at: null, created_at: created });
+  sort_order: number | null = null,
+): Task => ({ id, title: id, cadence, goal_id, sort_order, archived_at: null, created_at: created });
 const comp = (
   task_id: string, period_key: string, completed_on: string, completed_minute: number | null = null,
 ): Completion =>
@@ -208,5 +210,42 @@ const nightTask = task("n1", "daily", "2026-08-12T01:30:00");
 eq("a 1am task counts from the night before", activeOn(nightTask, "2026-08-11", 3), true);
 eq("...and not from a day earlier still", activeOn(nightTask, "2026-08-10", 3), false);
 
+
+// --- manual ordering --------------------------------------------------------
+console.log("\nsort order");
+eq("an empty list starts at 1", sortOrderBetween(null, null), 1);
+eq("dropping above the top goes below it", sortOrderBetween(null, 3), 2);
+eq("dropping past the end goes above it", sortOrderBetween(3, null), 4);
+eq("between two neighbours is the midpoint", sortOrderBetween(2, 3), 2.5);
+eq("...and stays strictly between them", sortOrderBetween(2.5, 2.75), 2.625);
+// Negative numbers happen the moment something is dragged above position 1.
+eq("the top of a list can go negative", sortOrderBetween(null, -1), -2);
+
+// Four rows numbered 1,2,3,4, in the order the list shows them.
+const ordered = (n: number[]) =>
+  n.map((v, i) => task(`t${i}`, "daily", `2026-01-0${i + 1}`, null, v));
+
+console.log("\nmoving a row");
+eq("first to last", orderForMove(ordered([1, 2, 3, 4]), 0, 3), 5);
+eq("last to first", orderForMove(ordered([1, 2, 3, 4]), 3, 0), 0);
+// Downwards is the case that is easy to get one place short: once the held row
+// is lifted out, slot 2's neighbours are the old rows 2 and 3, not 1 and 2.
+eq("first to the middle", orderForMove(ordered([1, 2, 3, 4]), 0, 2), 3.5);
+eq("last to the middle", orderForMove(ordered([1, 2, 3, 4]), 3, 1), 1.5);
+eq("swapping a pair", orderForMove(ordered([1, 2]), 0, 1), 3);
+
+console.log("\nlist order");
+eq("sort_order wins over creation order",
+  [...ordered([3, 1, 2])].sort(compareTasks).map((t) => t.id), ["t1", "t2", "t0"]);
+// A row written before the column existed has to fall to the end, never the
+// top — a null sorting first would silently reshuffle somebody's whole list.
+eq("a null sort_order sorts last", [
+  task("old", "daily", "2020-01-01", null, null),
+  task("new", "daily", "2026-01-01", null, 5),
+].sort(compareTasks).map((t) => t.id), ["new", "old"]);
+eq("ties fall back to created_at", [
+  task("later", "daily", "2026-02-01", null, 1),
+  task("earlier", "daily", "2026-01-01", null, 1),
+].sort(compareTasks).map((t) => t.id), ["earlier", "later"]);
 console.log(`\n${failures === 0 ? "PASS — all assertions held" : `FAIL — ${failures} assertion(s) failed`}`);
 process.exit(failures === 0 ? 0 : 1);

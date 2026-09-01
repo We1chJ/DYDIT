@@ -187,3 +187,35 @@ alter table public.completions
 alter table public.completions drop constraint if exists completions_completed_minute_check;
 alter table public.completions add constraint completions_completed_minute_check
   check (completed_minute is null or completed_minute between 0 and 1439);
+
+-- ---------------------------------------------------------------------------
+-- sort_order — where a task sits in its list
+--
+-- A fractional index, so dragging one row rewrites one row rather than
+-- renumbering everything below the drop. See lib/order.ts for the arithmetic.
+--
+-- Nullable, because it cannot have a useful default: the right value depends on
+-- what is already in the list. Nulls sort last, so a row that somehow misses
+-- one lands at the bottom of its list instead of silently at the top.
+-- ---------------------------------------------------------------------------
+alter table public.tasks
+  add column if not exists sort_order double precision;
+
+-- Number the rows that predate the column, per person and per list, in the
+-- order they were already being shown. Without this a first drag would have no
+-- neighbours to sit between and the whole list would jump.
+update public.tasks t
+set sort_order = numbered.rn
+from (
+  select id,
+         row_number() over (
+           partition by user_id, cadence
+           order by created_at, id
+         ) as rn
+  from public.tasks
+) as numbered
+where t.id = numbered.id
+  and t.sort_order is null;
+
+create index if not exists tasks_user_sort_idx
+  on public.tasks (user_id, cadence, sort_order);

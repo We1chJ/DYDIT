@@ -17,6 +17,11 @@ export type Task = {
   cadence: Cadence;
   /** Optional edge to a Goal. Null means the task stands on its own. */
   goal_id: string | null;
+  /**
+   * Where the task sits in its list, as a fractional index — see lib/order.ts.
+   * Null only for rows written before the column existed; those sort last.
+   */
+  sort_order: number | null;
   archived_at: string | null;
   created_at: string;
 };
