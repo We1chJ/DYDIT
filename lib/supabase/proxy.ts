@@ -5,6 +5,14 @@ import { supabaseEnvOrNull } from "./env";
 const PUBLIC_PATHS = [
   "/login",
   "/auth",
+  /*
+   * The reminder endpoint is called by the scheduler, which has no session and
+   * never will. Left out of this list it is redirected to /login before it ever
+   * runs, which is a redirect the caller reads as success — the route carries
+   * its own bearer-token check, which is the guard that actually fits a caller
+   * that is a machine rather than a person.
+   */
+  "/api/reminders",
   // The design harness at /preview needs no session, and 404s in production.
   ...(process.env.NODE_ENV === "production" ? [] : ["/preview"]),
 ];

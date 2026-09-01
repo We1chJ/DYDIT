@@ -253,12 +253,32 @@ per-platform code: the same subscription works on macOS and Windows.
 `public/sw.js` is the only part of the app that runs with no tab open. A push
 wakes it, it draws the notification, it sleeps again.
 
-`/api/reminders` is called hourly by the schedule in `vercel.json`. For each
-person who has reminders on, it asks whether it is their chosen hour in their
-own timezone, and whether anything is outstanding for the current period. It
-pushes at most once per period per browser, recorded in `last_notified_key`,
-so the next hour's run stays quiet. Subscriptions the push service reports as
-gone (404 or 410) are deleted rather than retried forever.
+The scheduling lives in Postgres, not in the app — run `supabase/reminders.sql`
+once. `pg_cron` runs hourly; a SQL function asks, for each person with reminders
+on, whether it is their chosen hour on their own clock and whether anything is
+outstanding for the current period; `pg_net` posts the finished list to
+`/api/reminders`, which does nothing but sign and send.
+
+That split exists to keep one credential from existing. Working out who is
+behind means reading across every account, which from outside the database needs
+the `service_role` key — and that key bypasses every RLS policy in the project.
+Inside the database it needs no key at all, so the app never has to hold one.
+
+The token Postgres presents is generated in the database and stored in Vault.
+Only its SHA-256 is deployed, as `CRON_SECRET_SHA256`; the endpoint compares
+digests, so the token itself never has to be pasted anywhere.
+
+A reminder goes out at most once per period per browser, recorded in
+`last_notified_key`. That is marked *before* the push is sent, because the
+endpoint holds no database credentials and cannot report back — so a push lost
+in transit costs one missed reminder rather than an hourly retry, which is how
+people learn to turn notifications off. Endpoints the push service reports as
+gone come back in the response as `dead`, but nothing prunes them automatically
+any more.
+
+`/api/reminders` is in `PUBLIC_PATHS` in `lib/supabase/proxy.ts`. It has to be:
+the scheduler has no session, and without that exemption every call is redirected
+to `/login` before the route runs — a redirect the caller reads as success.
 
 The to-do list is deliberately excluded: a one-off has no deadline, and being
 nagged about it every evening is how notifications end up muted.
@@ -270,7 +290,7 @@ nagged about it every evening is how notifications end up muted.
 | `NEXT_PUBLIC_VAPID_PUBLIC_KEY` | Identifies your server to the push services. Public by design. |
 | `VAPID_PRIVATE_KEY` | Signs pushes. Secret. |
 | `VAPID_SUBJECT` | A `mailto:` the push services can contact. |
-| `CRON_SECRET` | Presented by the scheduler as a bearer token. |
-| `SUPABASE_SERVICE_ROLE_KEY` | The sender runs with no session, so it cannot use RLS. **Bypasses every policy — never prefix it `NEXT_PUBLIC_`.** |
+| `CRON_SECRET_SHA256` | SHA-256 of the token Postgres presents. A digest, so it is safe to copy anywhere. `supabase/reminders.sql` prints it. |
 
-Generate the VAPID pair with `npx web-push generate-vapid-keys`.
+Generate the VAPID pair with `npx web-push generate-vapid-keys`. There is no
+`SUPABASE_SERVICE_ROLE_KEY` here, and there should not be.
