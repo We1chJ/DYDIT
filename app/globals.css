@@ -267,6 +267,15 @@
   .anim-col-in {
     animation: col-in 300ms var(--ease-out-expo) backwards;
   }
+
+  /*
+    Shown while the page is re-reading the server. It sweeps rather than fills
+    because there is no percentage to report: a refetch has either come back or
+    it has not.
+  */
+  .anim-sync {
+    animation: sync-sweep 900ms ease-in-out infinite;
+  }
 }
 
 @keyframes logo-draw {
@@ -346,5 +355,14 @@
   .logo-check,
   [data-slot="checkbox-indicator"] svg path {
     stroke-dashoffset: 0;
+  }
+}
+
+@keyframes sync-sweep {
+  from {
+    transform: translateX(-100%);
+  }
+  to {
+    transform: translateX(400%);
   }
 }

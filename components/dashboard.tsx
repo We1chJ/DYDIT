@@ -2,11 +2,14 @@
 
 import {
   useCallback,
+  useEffect,
   useMemo,
+  useRef,
   useState,
   useSyncExternalStore,
   useTransition,
 } from "react";
+import { useRouter } from "next/navigation";
 import {
   addGoal,
   addTask,
@@ -173,6 +176,43 @@ export function Dashboard({
 
   const [error, setError] = useState<string | null>(null);
   const [, startTransition] = useTransition();
+
+  /*
+   * Coming back to the tab re-reads the database before anything else happens.
+   *
+   * The same list is open on more than one machine, so what is on screen here
+   * drifts the moment it is edited somewhere else. Returning to a tab is
+   * exactly when that matters: it is when you are about to act on what you see,
+   * and it is when the local copy has had the longest to go stale.
+   *
+   * The correction is allowed to be visible — rows can jump as the truth lands
+   * — because a list that quietly disagrees with the database is worse than one
+   * that visibly fixes itself. Edits are blocked while the read is in flight,
+   * so nothing can be written against a list that is about to be replaced.
+   *
+   * This is not a live subscription: it answers "is what I am looking at true?",
+   * not "tell me the instant anything changes".
+   */
+  const router = useRouter();
+  const [syncing, startSync] = useTransition();
+  const lastSync = useRef(0);
+
+  useEffect(() => {
+    function resync() {
+      if (document.visibilityState !== "visible") return;
+      // Alt-tabbing through windows fires both listeners, repeatedly. One read.
+      if (Date.now() - lastSync.current < 3000) return;
+      lastSync.current = Date.now();
+      startSync(() => router.refresh());
+    }
+
+    document.addEventListener("visibilitychange", resync);
+    window.addEventListener("focus", resync);
+    return () => {
+      document.removeEventListener("visibilitychange", resync);
+      window.removeEventListener("focus", resync);
+    };
+  }, [router]);
 
   /*
    * Counts user-driven changes. The charts render statically for the first
@@ -504,7 +544,23 @@ export function Dashboard({
     : null;
 
   return (
-    <div className="mx-auto w-full max-w-[860px] px-5 pb-24 pt-5 sm:px-8">
+    <>
+      {syncing ? (
+        <div
+          role="status"
+          aria-label="Syncing with the server"
+          className="fixed inset-x-0 top-0 z-50 h-[2px] overflow-hidden"
+        >
+          <div className="anim-sync h-full w-1/4 bg-primary" />
+        </div>
+      ) : null}
+
+    <div
+      aria-busy={syncing}
+      className={`mx-auto w-full max-w-[860px] px-5 pb-24 pt-5 transition-opacity duration-150 sm:px-8 ${
+        syncing ? "pointer-events-none opacity-70" : ""
+      }`}
+    >
       <header className="flex items-center gap-2.5">
         <Logo className="size-[19px] text-foreground" />
         <span className="text-[15px] font-semibold tracking-[-0.02em]">
@@ -828,5 +884,6 @@ export function Dashboard({
         />
       </div>
     </div>
+    </>
   );
 }
