@@ -3,6 +3,7 @@ import {
   activeOn, averageRatio, busiestHour, currentStreak, dailyStats, goalStats,
   longestStreak, perfectDays, taskMinutes, timeOfDay,
 } from "../lib/stats";
+import { focusList } from "../lib/focus";
 import { compareTasks, orderForMove, sortOrderBetween } from "../lib/order";
 import type { Completion, Goal, Task } from "../lib/types";
 
@@ -247,5 +248,79 @@ eq("ties fall back to created_at", [
   task("later", "daily", "2026-02-01", null, 1),
   task("earlier", "daily", "2026-01-01", null, 1),
 ].sort(compareTasks).map((t) => t.id), ["earlier", "later"]);
+
+// --- what to focus on -------------------------------------------------------
+// 2026-08-10 is a Monday, so 08-15 is Saturday and 08-16 is Sunday, all in W33.
+console.log("\nfocus list");
+
+const sunday = new Date(2026, 7, 16);
+const saturday = new Date(2026, 7, 15);
+const monday = new Date(2026, 7, 10);
+const daily = (id: string) => task(id, "daily", "2026-01-01T09:00:00");
+const dayKey = (d: Date) =>
+  `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
+/** n consecutive daily completions ending yesterday, relative to Sunday. */
+const runOf = (id: string, n: number) =>
+  Array.from({ length: n }, (_, i) => {
+    const k = dayKey(new Date(2026, 7, 15 - i));
+    return comp(id, k, k);
+  });
+
+// The deadline signal only speaks when the week is actually running out.
+const wk = [task("w1", "weekly", "2026-01-01T09:00:00")];
+const lastWeek = [comp("w1", "2026-W32", "2026-08-08")];
+eq("a weekly on Saturday has a day left",
+  focusList(wk, lastWeek, saturday)[0].reason, "1 day left this week");
+eq("a weekly on Sunday is out of week",
+  focusList(wk, [comp("w1", "2026-W32", "2026-08-03")], sunday)[0].reason, "last day this week");
+// The same task, the same week: pressure rises as the days run out.
+eq("the same weekly is more pressing on Sunday than Monday",
+  focusList(wk, [comp("w1", "2026-W32", "2026-08-03")], sunday)[0].score >
+  focusList(wk, [comp("w1", "2026-W32", "2026-08-03")], monday)[0].score, true);
+
+// Done for this period is not something to be told about.
+eq("a finished weekly is not listed",
+  focusList(wk, [comp("w1", "2026-W33", "2026-08-11")], sunday).length, 0);
+eq("a finished daily is not listed",
+  focusList([daily("d1")], [comp("d1", "2026-08-16", "2026-08-16")], sunday).length, 0);
+
+// A streak worth protecting takes over the row; a short one does not pretend to.
+eq("a fortnight-long streak is what the row reports",
+  focusList([daily("d1")], runOf("d1", 14), sunday)[0].reason, "14 days on the line");
+// Even a short run says more than "due today", which is true of every daily.
+eq("a short streak still says what is at stake",
+  focusList([daily("d1")], runOf("d1", 3), sunday)[0].reason, "3 days on the line");
+eq("with no run at all it falls back to the deadline",
+  focusList([daily("d1")], runOf("d1", 1), sunday)[0].reason, "due today");
+// A weekly about to expire outranks anything else worth saying about it.
+eq("an expiring weekly leads with the deadline, not its run",
+  focusList(wk, [comp("w1", "2026-W32", "2026-08-14")], sunday)[0].reason,
+  "last day this week");
+// Same staleness, same deadline: the longer run leads.
+eq("the longer streak leads",
+  focusList([daily("keep"), daily("cold")],
+    [...runOf("keep", 20), ...runOf("cold", 1)], sunday).map((f) => f.task.id),
+  ["keep", "cold"]);
+
+// Neglect is the signal no deadline ever catches.
+eq("a one-off reports how long it has sat",
+  focusList([task("t1", "once", "2026-06-01T09:00:00")], [], sunday)[0].reason,
+  "sat here 76 days");
+eq("a neglected daily reports the gap",
+  focusList([daily("d1")], [comp("d1", "2026-08-04", "2026-08-04")], sunday)[0].reason,
+  "12 days untouched");
+// Never done at all falls back to how long it has been sitting there.
+eq("a task never done outranks one done yesterday",
+  focusList([daily("never"), daily("fresh")], runOf("fresh", 1), sunday).map((f) => f.task.id),
+  ["never", "fresh"]);
+
+// Only ever three, and nothing archived.
+eq("the list stays short",
+  focusList(Array.from({ length: 9 }, (_, i) => daily(`t${i}`)), [], sunday).length, 3);
+const goneTask: Task = { ...daily("gone"), archived_at: "2026-08-01T00:00:00" };
+eq("archived tasks are left out", focusList([goneTask], [], sunday).length, 0);
+eq("nothing outstanding yields nothing", focusList([], [], sunday).length, 0);
+
+
 console.log(`\n${failures === 0 ? "PASS — all assertions held" : `FAIL — ${failures} assertion(s) failed`}`);
 process.exit(failures === 0 ? 0 : 1);

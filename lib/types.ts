@@ -47,20 +47,14 @@ export type Completion = {
 export type Settings = {
   /** The hour a new day begins, 0-23. Ticks before it count for the day before. */
   day_start_hour: number;
-  /** IANA zone captured from the browser, so a scheduler knows your calendar. */
+  /** IANA zone captured from the browser. Kept for date maths, not for a clock. */
   timezone: string | null;
-  /** Whether reminders are wanted at all. */
-  remind_enabled: boolean;
-  /** Local hour a reminder should arrive, or null before one is chosen. */
-  remind_hour: number | null;
 };
 
 /** Used before a settings row exists, and by the preview harness. */
 export const DEFAULT_SETTINGS: Settings = {
   day_start_hour: 3,
   timezone: null,
-  remind_enabled: false,
-  remind_hour: 21,
 };
 
 export type TabDef = {

@@ -17,19 +17,16 @@ import {
   removeGoal,
   removeTask,
   renameGoal,
-  removePushSubscription,
   saveDayStart,
-  savePushSubscription,
-  saveReminder,
   renameTask,
   setDone,
   setTaskGoal,
 } from "@/app/actions";
 import { AddTask } from "@/components/add-task";
+import { FocusCard } from "@/components/focus-card";
 import { GoalRows } from "@/components/goal-rows";
 import { Heatmap } from "@/components/heatmap";
 import { Logo } from "@/components/logo";
-import { ReminderToggle } from "@/components/reminder-toggle";
 import { SortableList } from "@/components/sortable-list";
 import { StatStrip } from "@/components/stat-strip";
 import { TaskRow } from "@/components/task-row";
@@ -38,6 +35,7 @@ import { ThemeToggle } from "@/components/theme-toggle";
 import { TodayDonut } from "@/components/today-donut";
 import { TimeCurve } from "@/components/time-curve";
 import { TrendChart } from "@/components/trend-chart";
+import { focusList } from "@/lib/focus";
 import { compareTasks, orderForMove, sortOrderBetween } from "@/lib/order";
 import {
   addDays,
@@ -241,6 +239,17 @@ export function Dashboard({
     [localGoals],
   );
 
+  /*
+   * Recomputed from the live mirrors rather than the server props, so ticking
+   * something off the card makes it leave the card immediately — the list is
+   * about what is outstanding, and a suggestion that lingers after you have
+   * done it stops being one.
+   */
+  const focus = useMemo(
+    () => (today ? focusList(liveTasks, localComps, today) : []),
+    [liveTasks, localComps, today],
+  );
+
   const goalRows = useMemo(() => {
     if (!today) return [];
     return goalStats(localGoals, localTasks, localComps, today, dayStartHour);
@@ -383,22 +392,6 @@ export function Dashboard({
         setDayStartHour(previous);
       }
     });
-  }
-
-  const [remindHour, setRemindHour] = useState(settings.remind_hour ?? 21);
-
-  function zone() {
-    return Intl.DateTimeFormat().resolvedOptions().timeZone ?? "";
-  }
-
-  /** Reports an action's error without swallowing it into the console. */
-  async function run(work: () => Promise<{ error?: string }>) {
-    try {
-      const res = await work();
-      if (res.error) setError(res.error);
-    } catch (e) {
-      setError(e instanceof Error ? e.message : "Something went wrong.");
-    }
   }
 
   function handleRenameGoal(goalId: string, title: string) {
@@ -614,7 +607,15 @@ export function Dashboard({
         </div>
       ) : null}
 
-      <section className="mt-7 space-y-3">
+      <section className="mt-6">
+        <FocusCard
+          items={focus}
+          pending={!today}
+          onToggle={(item) => handleToggle(item.task, true)}
+        />
+      </section>
+
+      <section className="mt-3 space-y-3">
         {stats ? (
           <StatStrip
             stats={[
@@ -866,28 +867,6 @@ export function Dashboard({
         </select>
         <span>— anything ticked before then counts for the night before</span>
       </footer>
-
-      <div className="mt-2 flex flex-wrap items-center justify-center gap-x-2 gap-y-1 text-[12px] text-faint">
-        <ReminderToggle
-          enabled={settings.remind_enabled}
-          hour={remindHour}
-          onSetHour={(h) => {
-            setRemindHour(h);
-            startTransition(() => {
-              void run(() => saveReminder(true, h, zone()));
-            });
-          }}
-          onSubscribe={async (sub) => {
-            await run(() => savePushSubscription(sub));
-            await run(() => saveReminder(true, remindHour, zone()));
-          }}
-          onUnsubscribe={async (endpoint) => {
-            await run(() => removePushSubscription(endpoint));
-            await run(() => saveReminder(false, remindHour, zone()));
-          }}
-          onError={setError}
-        />
-      </div>
     </div>
     </>
   );

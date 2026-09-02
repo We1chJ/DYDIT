@@ -49,7 +49,7 @@ export default async function Page() {
     // maybeSingle: there is no row until something is changed from the default.
     supabase
       .from("settings")
-      .select("day_start_hour, timezone, remind_enabled, remind_hour")
+      .select("day_start_hour, timezone")
       .maybeSingle(),
   ]);
 
