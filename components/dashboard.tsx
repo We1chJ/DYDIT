@@ -187,8 +187,14 @@ export function Dashboard({
    *
    * The correction is allowed to be visible — rows can jump as the truth lands
    * — because a list that quietly disagrees with the database is worse than one
-   * that visibly fixes itself. Edits are blocked while the read is in flight,
-   * so nothing can be written against a list that is about to be replaced.
+   * that visibly fixes itself.
+   *
+   * The read does not block anything. Freezing the page for it made every
+   * return to the tab cost a visible pause, which is a poor trade for the rare
+   * edit made in the few hundred milliseconds a refresh takes. A tick made
+   * mid-read can be overwritten by the arriving data, but the write is already
+   * on its way and revalidates on arrival, so the two converge — the cost is a
+   * flicker rather than a lost tick.
    *
    * This is not a live subscription: it answers "is what I am looking at true?",
    * not "tell me the instant anything changes".
@@ -200,8 +206,9 @@ export function Dashboard({
   useEffect(() => {
     function resync() {
       if (document.visibilityState !== "visible") return;
-      // Alt-tabbing through windows fires both listeners, repeatedly. One read.
-      if (Date.now() - lastSync.current < 3000) return;
+      // Alt-tabbing through windows fires both listeners, repeatedly, and a
+      // list that was true ten seconds ago is still true enough to act on.
+      if (Date.now() - lastSync.current < 10_000) return;
       lastSync.current = Date.now();
       startSync(() => router.refresh());
     }
@@ -557,9 +564,7 @@ export function Dashboard({
 
     <div
       aria-busy={syncing}
-      className={`mx-auto w-full max-w-[860px] px-5 pb-24 pt-5 transition-opacity duration-150 sm:px-8 ${
-        syncing ? "pointer-events-none opacity-70" : ""
-      }`}
+      className="mx-auto w-full max-w-[860px] px-5 pb-24 pt-5 sm:px-8"
     >
       <header className="flex items-center gap-2.5">
         <Logo className="size-[19px] text-foreground" />
