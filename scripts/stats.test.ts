@@ -396,6 +396,27 @@ console.log("\nweekly review");
   const forgotten = task("cold", "daily", "2026-01-01T09:00:00");
   const sr = review([d1, forgotten], comps, [], new Date(2026, 7, 12), new Date(2026, 7, 20), 3);
   eq("only the long-neglected is listed", sr.stale.map((s) => s.task.id), ["cold"]);
+
+  // The strongest day, by ratio rather than raw count.
+  eq("the best day is the one with the highest ratio", r.bestDay?.dayKey, "2026-08-10");
+  eq("...reported as a fraction", [r.bestDay?.done, r.bestDay?.total], [2, 2]);
+  eq("a week with nothing ever due has no best day",
+    review([], [], [], new Date(2026, 7, 12), new Date(2026, 7, 20), 3).bestDay, null);
+
+  // The week before, for comparison. W32 is Aug 3-9.
+  const prior = [...days.map((k) => comp("d1", k, k)),
+    ...["2026-08-03","2026-08-04"].map((k) => comp("d2", k, k))];
+  const withPrev = review([d1, d2], prior, [], new Date(2026, 7, 12), new Date(2026, 7, 20), 3);
+  eq("the week before is measured too", [withPrev.prevDone, withPrev.prevTotal], [2, 14]);
+  eq("a first week has nothing behind it",
+    review([task("new", "daily", "2026-08-10T09:00:00")], [], [], new Date(2026, 7, 12), new Date(2026, 7, 20), 3).prevTotal, 0);
+
+  // The hours are of the week under review, not of all time.
+  const timed = review([d1], [comp("d1", "2026-08-10", "2026-08-10", 1320), comp("d1", "2026-09-01", "2026-09-01", 540)],
+    [], new Date(2026, 7, 12), new Date(2026, 8, 5), 3);
+  eq("always 24 hour buckets", timed.hours.length, 24);
+  eq("the 10pm tick inside the week is counted", timed.hours[22].count, 1);
+  eq("the September tick is outside the week and is not", timed.hours[9].count, 0);
   eq("d1 was done this week, so it is not stale", sr.stale.some((s) => s.task.id === "d1"), false);
 }
 

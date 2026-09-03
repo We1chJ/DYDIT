@@ -269,6 +269,34 @@
   }
 
   /*
+    The weekly story. Each card is keyed, so arriving at one is a mount and
+    every piece replays its entrance; the delays stagger them into a sequence
+    rather than one simultaneous arrival.
+  */
+  .anim-story-kicker {
+    animation: story-up 420ms var(--ease-out-expo) backwards;
+  }
+  .anim-story-value {
+    animation: story-up 520ms 60ms var(--ease-out-expo) backwards;
+  }
+  .anim-story-caption {
+    animation: story-up 460ms 160ms var(--ease-out-expo) backwards;
+  }
+  .anim-story-row {
+    animation: story-up 420ms var(--ease-out-expo) backwards;
+  }
+  /* The way in arrives, once a week, rather than having always been there. */
+  .anim-banner-in {
+    animation: story-up 460ms 80ms var(--ease-out-expo) backwards;
+  }
+
+  /* Bars grow from the floor, so the shape of the day draws itself. */
+  .anim-story-bar {
+    animation: story-grow 500ms var(--ease-out-expo) backwards;
+    transform-origin: bottom;
+  }
+
+  /*
     Shown while the page is re-reading the server. It sweeps rather than fills
     because there is no percentage to report: a refetch has either come back or
     it has not.
@@ -364,5 +392,51 @@
   }
   to {
     transform: translateX(400%);
+  }
+}
+
+@keyframes story-up {
+  from {
+    opacity: 0;
+    transform: translateY(10px);
+  }
+  to {
+    opacity: 1;
+    transform: none;
+  }
+}
+
+@keyframes story-grow {
+  from {
+    transform: scaleY(0);
+  }
+  to {
+    transform: scaleY(1);
+  }
+}
+
+/* Drives the segment bars along the top of the story. */
+@keyframes story-fill {
+  from {
+    transform: scaleX(0);
+  }
+  to {
+    transform: scaleX(1);
+  }
+}
+
+/*
+  Everything above is decoration on a once-a-week screen. Anyone who has asked
+  for less movement gets the cards without any of it, and the story stops
+  advancing on its own — the component pauses itself under the same query.
+*/
+@media (prefers-reduced-motion: reduce) {
+  .anim-story-kicker,
+  .anim-story-value,
+  .anim-story-caption,
+  .anim-story-row,
+  .anim-story-bar,
+  .anim-banner-in {
+    animation: none;
   }
 }

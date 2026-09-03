@@ -25,8 +25,10 @@ type TaskRowProps = {
   /**
    * False for the to-do list. A one-off has no rhythm to chart — its times
    * strip would hold a single mark — and nothing ongoing to feed, so neither
-   * trailing control earns the space. An existing link still shows, so that
-   * turning this off never hides a link it cannot then undo.
+   * trailing control earns the space.
+   *
+   * A one-off that was linked before this stays linked, and goes on counting
+   * toward its goal; the row simply stops offering to change it.
    */
   recurring?: boolean;
   /** The goal this feeds, if any. */
@@ -168,7 +170,7 @@ export function TaskRow({
               </span>
             </button>
 
-            {goals.length > 0 && (recurring || goal) ? (
+            {goals.length > 0 && recurring ? (
               <button
                 type="button"
                 onClick={() => setPanel((p) => (p === "goal" ? "none" : "goal"))}

@@ -28,6 +28,7 @@ import { FocusCard } from "@/components/focus-card";
 import { GoalRows } from "@/components/goal-rows";
 import { Heatmap } from "@/components/heatmap";
 import { Logo } from "@/components/logo";
+import { ReviewBanner } from "@/components/review-banner";
 import { SortableList } from "@/components/sortable-list";
 import { StatStrip } from "@/components/stat-strip";
 import { TaskRow } from "@/components/task-row";
@@ -39,7 +40,7 @@ import { TimeCurve } from "@/components/time-curve";
 import { TrendChart } from "@/components/trend-chart";
 import { focusList } from "@/lib/focus";
 import { newId } from "@/lib/ids";
-import { lastCompleteWeek, review as buildReview } from "@/lib/review";
+import { formatWeekRange, lastCompleteWeek, review as buildReview } from "@/lib/review";
 import { compareTasks, orderForMove, sortOrderBetween } from "@/lib/order";
 import {
   addDays,
@@ -650,7 +651,9 @@ export function Dashboard({
             Review
             {/*
               An unread mark rather than a count: there is only ever one week
-              waiting, and a number would imply a backlog to work through.
+              waiting, and a number would imply a backlog to work through. The
+              banner above carries the announcement; this is just the way back
+              in once it has been read.
             */}
             {unread ? (
               <span
@@ -696,6 +699,15 @@ export function Dashboard({
             Dismiss
           </button>
         </div>
+      ) : null}
+
+      {unread && weekReview ? (
+        <section className="mt-6">
+          <ReviewBanner
+            range={formatWeekRange(weekReview.from, weekReview.to)}
+            onOpen={openReview}
+          />
+        </section>
       ) : null}
 
       <section className="mt-6">

@@ -5,7 +5,14 @@ import {
   isoWeekKey,
   toDayKey,
 } from "@/lib/periods";
-import { activeOn, completionIndex, dailyStats, isDone } from "@/lib/stats";
+import {
+  activeOn,
+  completionIndex,
+  dailyStats,
+  isDone,
+  timeOfDay,
+  type HourBucket,
+} from "@/lib/stats";
 import type { Completion, Goal, Task } from "@/lib/types";
 
 /*
@@ -33,6 +40,9 @@ export type GoalMove = { goal: Goal; days: number };
 
 export type Stale = { task: Task; days: number };
 
+/** The strongest day of the week, when there was one to have. */
+export type BestDay = { dayKey: string; done: number; total: number };
+
 export type WeekReview = {
   weekKey: string;
   /** Monday and Sunday of the week, as day keys. */
@@ -54,6 +64,14 @@ export type WeekReview = {
   slips: Slip[];
   goalsMoved: GoalMove[];
   stale: Stale[];
+  /** The day the most got done, by ratio. Null when nothing was ever due. */
+  bestDay: BestDay | null;
+  /** The week before, for comparison. Zero totals mean there is nothing to
+   *  compare against — a first week should not be told it fell short. */
+  prevDone: number;
+  prevTotal: number;
+  /** When in the day the week's ticks landed, for the 24-hour shape. */
+  hours: HourBucket[];
 };
 
 /** Monday of the ISO week containing `d`. */
@@ -152,6 +170,19 @@ export function review(
     .filter((s) => s.days > 7)
     .sort((a, b) => b.days - a.days || a.task.title.localeCompare(b.task.title));
 
+  // --- the strongest day, and the week before ------------------------------
+  let bestDay: BestDay | null = null;
+  for (const d of days) {
+    if (d.total === 0 || d.ratio === null) continue;
+    if (bestDay === null || d.ratio > bestDay.done / bestDay.total) {
+      bestDay = { dayKey: d.dayKey, done: d.done, total: d.total };
+    }
+  }
+
+  const prevFrom = toDayKey(addDays(monday, -7));
+  const prevTo = toDayKey(addDays(monday, -1));
+  const prevDays = dailyStats(tasks, completions, prevFrom, prevTo, dayStartHour);
+
   return {
     weekKey,
     from,
@@ -166,6 +197,10 @@ export function review(
     slips: slips.slice(0, limit),
     goalsMoved: goalsMoved.slice(0, limit),
     stale: stale.slice(0, limit),
+    bestDay,
+    prevDone: prevDays.reduce((n, d) => n + d.done, 0),
+    prevTotal: prevDays.reduce((n, d) => n + d.total, 0),
+    hours: timeOfDay(inRange),
   };
 }
 
