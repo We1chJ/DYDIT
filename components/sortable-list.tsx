@@ -36,8 +36,6 @@ type SortableListProps<T> = {
   getId: (item: T) => string;
   /** Names the handle for screen readers, e.g. "Reorder Anki reps". */
   getLabel: (item: T) => string;
-  /** Rows that cannot be picked up — one with no server id yet has nowhere to go. */
-  isLocked?: (item: T) => boolean;
   onMove: (id: string, to: number) => void;
   /**
    * `handle` is the grip itself, already wired, for the row to place wherever
@@ -56,7 +54,6 @@ export function SortableList<T>({
   items,
   getId,
   getLabel,
-  isLocked,
   onMove,
   children,
 }: SortableListProps<T>) {
@@ -185,7 +182,6 @@ export function SortableList<T>({
     <div ref={listRef} className={drag ? "select-none" : undefined}>
       {items.map((item, index) => {
         const held = drag?.from === index;
-        const locked = isLocked?.(item) ?? false;
 
         return (
           <div
@@ -202,7 +198,7 @@ export function SortableList<T>({
             {children(item, {
               index,
               dragging: held,
-              handle: locked ? null : (
+              handle: (
                 <button
                   type="button"
                   onPointerDown={(e) => begin(e, index)}

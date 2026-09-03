@@ -7,6 +7,9 @@ type FocusCardProps = {
   items: FocusItem[];
   /** True until the browser has settled on what day it is. */
   pending: boolean;
+  /** False once anything has been done, so a row that replaces a ticked one
+   *  arrives immediately rather than waiting out a first-paint delay. */
+  stagger?: boolean;
   onToggle: (item: FocusItem) => void;
 };
 
@@ -20,7 +23,7 @@ type FocusCardProps = {
  * Kept to three. A short list is a decision; a long one is the same problem
  * over again in a smaller font.
  */
-export function FocusCard({ items, pending, onToggle }: FocusCardProps) {
+export function FocusCard({ items, pending, stagger = true, onToggle }: FocusCardProps) {
   return (
     <div className="rounded-lg border border-border bg-card p-4">
       <div className="mb-1 flex items-baseline justify-between gap-3">
@@ -52,7 +55,7 @@ export function FocusCard({ items, pending, onToggle }: FocusCardProps) {
             <div
               key={item.task.id}
               className="anim-row-in group flex items-center gap-2.5 rounded-md px-2 py-[5px] transition-colors hover:bg-[var(--hover)]"
-              style={{ animationDelay: `${i * 28}ms` }}
+              style={{ animationDelay: stagger ? `${i * 28}ms` : "0ms" }}
             >
               <Checkbox
                 checked={false}

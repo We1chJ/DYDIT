@@ -36,6 +36,7 @@ import { TodayDonut } from "@/components/today-donut";
 import { TimeCurve } from "@/components/time-curve";
 import { TrendChart } from "@/components/trend-chart";
 import { focusList } from "@/lib/focus";
+import { newId } from "@/lib/ids";
 import { compareTasks, orderForMove, sortOrderBetween } from "@/lib/order";
 import {
   addDays,
@@ -74,6 +75,12 @@ import {
 
 const HEATMAP_WEEKS = 52;
 const TREND_DAYS = 30;
+/*
+ * Prefix for a completion that exists only locally. Tasks and goals no longer
+ * need one — they are created under a real id (lib/ids.ts) — but a completion's
+ * id is never a React key and is discarded the moment the server answers, so
+ * inventing one here costs nothing.
+ */
 const OPTIMISTIC = "optimistic-";
 
 /*
@@ -319,10 +326,16 @@ export function Dashboard({
     const last = localTasks.filter((t) => t.cadence === cadence).at(-1);
     const order = sortOrderBetween(last?.sort_order ?? null, null);
 
-    // Shown immediately under a temporary id; its checkbox stays disabled until
-    // the real row arrives, since a completion needs a real task id.
+    /*
+     * The id is decided here rather than by the insert, so the row rendered now
+     * and the row that comes back are the same row. React keys on it: a
+     * placeholder swapped out later destroys the element and rebuilds it, which
+     * replays the entrance animation and reads as a flicker. It also means the
+     * checkbox works immediately, because a completion has a real task to point
+     * at from the first frame.
+     */
     const optimistic: Task = {
-      id: `${OPTIMISTIC}${cadence}-${localTasks.length}-${title}`,
+      id: newId(),
       title,
       cadence,
       goal_id: goalId,
@@ -334,7 +347,7 @@ export function Dashboard({
 
     startTransition(async () => {
       try {
-        const res = await addTask(cadence, title, goalId, order);
+        const res = await addTask(optimistic.id, cadence, title, goalId, order);
         if (res.error) {
           setError(res.error);
           setLocalTasks((prev) => prev.filter((t) => t.id !== optimistic.id));
@@ -349,7 +362,7 @@ export function Dashboard({
   function handleAddGoal(title: string) {
     bumpChanges();
     const optimistic: Goal = {
-      id: `${OPTIMISTIC}goal-${localGoals.length}-${title}`,
+      id: newId(),
       title,
       archived_at: null,
       created_at: new Date().toISOString(),
@@ -358,7 +371,7 @@ export function Dashboard({
 
     startTransition(async () => {
       try {
-        const res = await addGoal(title);
+        const res = await addGoal(optimistic.id, title);
         if (res.error) {
           setError(res.error);
           setLocalGoals((prev) => prev.filter((g) => g.id !== optimistic.id));
@@ -402,7 +415,6 @@ export function Dashboard({
         prev.map((g) => (g.id === goalId ? { ...g, title: t } : g)),
       );
     setTitle(title);
-    if (goalId.startsWith(OPTIMISTIC)) return;
 
     startTransition(async () => {
       try {
@@ -421,7 +433,6 @@ export function Dashboard({
   function handleRemoveGoal(goalId: string) {
     bumpChanges();
     setLocalGoals((prev) => prev.filter((g) => g.id !== goalId));
-    if (goalId.startsWith(OPTIMISTIC)) return;
 
     startTransition(async () => {
       try {
@@ -436,7 +447,6 @@ export function Dashboard({
   function handleRemove(task: Task) {
     bumpChanges();
     setLocalTasks((prev) => prev.filter((t) => t.id !== task.id));
-    if (task.id.startsWith(OPTIMISTIC)) return;
 
     startTransition(async () => {
       try {
@@ -611,6 +621,7 @@ export function Dashboard({
         <FocusCard
           items={focus}
           pending={!today}
+          stagger={changes === 0}
           onToggle={(item) => handleToggle(item.task, true)}
         />
       </section>
@@ -739,19 +750,19 @@ export function Dashboard({
               items={list}
               getId={(task) => task.id}
               getLabel={(task) => task.title}
-              // A row that only exists locally has no id the server could move.
-              isLocked={(task) => task.id.startsWith(OPTIMISTIC)}
               onMove={(id, to) => handleMove(list, id, to)}
             >
               {(task, { index, handle, dragging }) => (
                 <TaskRow
                   index={index}
+                  stagger={changes === 0}
+                  recurring={task.cadence !== "once"}
                   title={task.title}
                   done={stats && key ? isDone(stats.index, task.id, key) : false}
                   goals={liveGoals}
                   goalId={task.goal_id}
                   minutes={taskMinutes(localComps, task.id)}
-                  pending={!today || task.id.startsWith(OPTIMISTIC)}
+                  pending={!today}
                   handle={handle}
                   dragging={dragging}
                   onToggle={(next) => handleToggle(task, next)}

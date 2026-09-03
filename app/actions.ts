@@ -7,6 +7,14 @@ import { TAB_BY_CADENCE, type Cadence } from "@/lib/types";
 
 type Result = { error?: string };
 
+/*
+ * Rows are inserted under an id the browser chose — see lib/ids.ts. The column
+ * default still stands for every other caller; this only checks that what
+ * arrives is actually a UUID, so a malformed one fails here with something
+ * readable instead of as a cast error from Postgres.
+ */
+const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+
 async function requireUser() {
   const supabase = await createClient();
   const {
@@ -19,6 +27,7 @@ async function requireUser() {
 }
 
 export async function addTask(
+  id: string,
   cadence: Cadence,
   title: string,
   goalId: string | null = null,
@@ -29,6 +38,7 @@ export async function addTask(
   const trimmed = title.trim();
   if (!trimmed) return { error: "Give the task a name." };
   if (trimmed.length > 500) return { error: "That title is too long." };
+  if (!UUID.test(id)) return { error: "That task id isn't valid." };
 
   // Checked against the known tabs so an arbitrary string can't reach the
   // insert and trip the CHECK constraint.
@@ -39,6 +49,7 @@ export async function addTask(
 
   const { supabase, user } = await requireUser();
   const { error } = await supabase.from("tasks").insert({
+    id,
     user_id: user.id,
     title: trimmed,
     cadence,
@@ -111,15 +122,16 @@ export async function removeTask(taskId: string): Promise<Result> {
   return {};
 }
 
-export async function addGoal(title: string): Promise<Result> {
+export async function addGoal(id: string, title: string): Promise<Result> {
   const trimmed = title.trim();
   if (!trimmed) return { error: "Give the goal a name." };
   if (trimmed.length > 200) return { error: "That goal name is too long." };
+  if (!UUID.test(id)) return { error: "That goal id isn't valid." };
 
   const { supabase, user } = await requireUser();
   const { error } = await supabase
     .from("goals")
-    .insert({ user_id: user.id, title: trimmed });
+    .insert({ id, user_id: user.id, title: trimmed });
 
   if (error) return { error: error.message };
   revalidatePath("/");

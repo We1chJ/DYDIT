@@ -14,8 +14,21 @@ type TaskRowProps = {
   pending?: boolean;
   /** Position in its section, used to stagger the entrance. */
   index?: number;
+  /**
+   * Whether to stagger at all. The cascade is for a list arriving together; a
+   * single row typed in just now should appear the moment it is typed, not
+   * wait out a delay computed from how far down the list it happens to sit.
+   */
+  stagger?: boolean;
   /** The goals this row can be pointed at, in the order they are numbered. */
   goals: Goal[];
+  /**
+   * False for the to-do list. A one-off has no rhythm to chart — its times
+   * strip would hold a single mark — and nothing ongoing to feed, so neither
+   * trailing control earns the space. An existing link still shows, so that
+   * turning this off never hides a link it cannot then undo.
+   */
+  recurring?: boolean;
   /** The goal this feeds, if any. */
   goalId?: string | null;
   /** Every timed tick of this task, as minutes since local midnight. */
@@ -42,7 +55,9 @@ export function TaskRow({
   done,
   pending = false,
   index = 0,
+  stagger = true,
   goals,
+  recurring = true,
   goalId = null,
   minutes,
   handle = null,
@@ -84,7 +99,7 @@ export function TaskRow({
     <div
       className="anim-row-in"
       // Capped so a long list still finishes arriving quickly.
-      style={{ animationDelay: `${Math.min(index, 8) * 28}ms` }}
+      style={{ animationDelay: stagger ? `${Math.min(index, 8) * 28}ms` : "0ms" }}
       // Closing on focus leaving the whole row covers both clicking away and
       // tabbing out, without a document-level listener.
       onBlur={(e) => {
@@ -153,7 +168,7 @@ export function TaskRow({
               </span>
             </button>
 
-            {goals.length > 0 ? (
+            {goals.length > 0 && (recurring || goal) ? (
               <button
                 type="button"
                 onClick={() => setPanel((p) => (p === "goal" ? "none" : "goal"))}
@@ -203,16 +218,18 @@ export function TaskRow({
               Both trailing controls stay invisible until the row is hovered or
               focused, so a list at rest is just titles and checkboxes.
             */}
-            <button
-              type="button"
-              onClick={() => setPanel((p) => (p === "times" ? "none" : "times"))}
-              aria-expanded={panel === "times"}
-              aria-label={`When ${title} usually gets done`}
-              title="When this usually gets done"
-              className="shrink-0 rounded p-0.5 text-faint opacity-0 transition-opacity hover:text-foreground focus-visible:opacity-100 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring group-hover:opacity-100"
-            >
-              <ClockIcon className="size-3.5" />
-            </button>
+            {recurring ? (
+              <button
+                type="button"
+                onClick={() => setPanel((p) => (p === "times" ? "none" : "times"))}
+                aria-expanded={panel === "times"}
+                aria-label={`When ${title} usually gets done`}
+                title="When this usually gets done"
+                className="shrink-0 rounded p-0.5 text-faint opacity-0 transition-opacity hover:text-foreground focus-visible:opacity-100 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring group-hover:opacity-100"
+              >
+                <ClockIcon className="size-3.5" />
+              </button>
+            ) : null}
 
             <button
               type="button"
