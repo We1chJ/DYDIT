@@ -641,26 +641,32 @@ export function Dashboard({
           {today ? formatDayLong(today) : ""}
         </span>
         <div className="ml-auto flex items-center gap-1 sm:ml-3">
+          {/*
+            Carries the story's own surface rather than the header's, because
+            it opens something that looks nothing like the rest of the page and
+            should say so before it is pressed.
+          */}
           <button
             type="button"
             onClick={openReview}
             disabled={!weekReview}
             title="How last week went"
-            className="relative rounded-md px-2 py-1 text-[13px] text-muted-foreground transition-colors hover:bg-[var(--hover)] hover:text-foreground disabled:opacity-40 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+            className="surface-story relative flex items-center gap-1.5 rounded-full py-1 pl-2.5 pr-3 text-[12.5px] font-medium shadow-sm transition-all hover:shadow disabled:opacity-40 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
           >
-            Review
             {/*
               An unread mark rather than a count: there is only ever one week
               waiting, and a number would imply a backlog to work through. The
-              banner above carries the announcement; this is just the way back
-              in once it has been read.
+              banner carries the announcement; this is the way back in once it
+              has been read, so the mark shrinks to a dot beside the label.
             */}
-            {unread ? (
-              <span
-                aria-label="New week to review"
-                className="absolute right-0.5 top-0.5 size-1.5 rounded-full bg-primary"
-              />
-            ) : null}
+            <span
+              aria-label={unread ? "New week to review" : undefined}
+              className={`size-1.5 shrink-0 rounded-full transition-colors ${
+                unread ? "anim-dot-pulse" : ""
+              }`}
+              style={{ backgroundColor: unread ? "#A3E635" : "rgba(242,245,240,0.35)" }}
+            />
+            Review
           </button>
           <ThemeToggle />
           <form action="/auth/signout" method="post">

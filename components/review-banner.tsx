@@ -10,8 +10,9 @@ import { PlayIcon } from "lucide-react";
  * enough to be clutter the rest of the time. So the entrance is a card while
  * the week is unread, and the quiet header button once it has been seen.
  *
- * It borrows the story's own colours rather than the app's, which is the point
- * — it should look like a door into somewhere else.
+ * It borrows the story's own surface rather than the app's, which is the point
+ * — it should look like a door into somewhere else. The header button wears the
+ * same texture, so the two read as one thing in two sizes.
  */
 export function ReviewBanner({
   range,
@@ -24,8 +25,7 @@ export function ReviewBanner({
     <button
       type="button"
       onClick={onOpen}
-      style={{ backgroundColor: "#0B3D2E", color: "#F5F5F4" }}
-      className="anim-banner-in group flex w-full items-center gap-4 overflow-hidden rounded-lg px-4 py-3.5 text-left transition-transform hover:scale-[1.006] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+      className="surface-story anim-banner-in group flex w-full items-center gap-4 overflow-hidden rounded-lg px-4 py-3.5 text-left transition-transform hover:scale-[1.006] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
     >
       <span
         aria-hidden

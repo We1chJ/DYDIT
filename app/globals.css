@@ -285,6 +285,51 @@
   .anim-story-row {
     animation: story-up 420ms var(--ease-out-expo) backwards;
   }
+  /*
+    The review's surface, shared by the header button and the banner.
+
+    Two layers over a flat ground: a fine diagonal weave that catches the eye
+    as texture rather than as a pattern, and a soft light from the top-left so
+    the thing reads as a surface rather than a colour swatch. Both are drawn in
+    CSS — an image would be a network request for four pixels of grain.
+
+    Fixed colours, like the story's cards: this is a piece of somewhere else
+    sitting in the header, and it should look the same in either theme.
+  */
+  .surface-story {
+    background-color: #0b3d2e;
+    background-image:
+      repeating-linear-gradient(
+        45deg,
+        rgba(255, 255, 255, 0.05) 0 1px,
+        transparent 1px 5px
+      ),
+      radial-gradient(
+        120% 140% at 12% 0%,
+        rgba(163, 230, 53, 0.22),
+        transparent 62%
+      );
+    color: #f2f5f0;
+  }
+  .surface-story:hover {
+    background-image:
+      repeating-linear-gradient(
+        45deg,
+        rgba(255, 255, 255, 0.07) 0 1px,
+        transparent 1px 5px
+      ),
+      radial-gradient(
+        120% 140% at 12% 0%,
+        rgba(163, 230, 53, 0.34),
+        transparent 66%
+      );
+  }
+
+  /* The unread mark breathes, so it reads as waiting rather than as a bullet. */
+  .anim-dot-pulse {
+    animation: dot-pulse 2.4s ease-in-out infinite;
+  }
+
   /* The way in arrives, once a week, rather than having always been there. */
   .anim-banner-in {
     animation: story-up 460ms 80ms var(--ease-out-expo) backwards;
@@ -436,7 +481,20 @@
   .anim-story-caption,
   .anim-story-row,
   .anim-story-bar,
-  .anim-banner-in {
+  .anim-banner-in,
+  .anim-dot-pulse {
     animation: none;
+  }
+}
+
+@keyframes dot-pulse {
+  0%,
+  100% {
+    opacity: 1;
+    transform: scale(1);
+  }
+  50% {
+    opacity: 0.45;
+    transform: scale(0.82);
   }
 }
