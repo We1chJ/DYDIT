@@ -17,6 +17,7 @@ import {
   removeGoal,
   removeTask,
   renameGoal,
+  markReviewSeen,
   saveDayStart,
   renameTask,
   setDone,
@@ -32,15 +33,18 @@ import { StatStrip } from "@/components/stat-strip";
 import { TaskRow } from "@/components/task-row";
 import { TaskTabs, type TabMeta } from "@/components/task-tabs";
 import { ThemeToggle } from "@/components/theme-toggle";
+import { WeeklyReview } from "@/components/weekly-review";
 import { TodayDonut } from "@/components/today-donut";
 import { TimeCurve } from "@/components/time-curve";
 import { TrendChart } from "@/components/trend-chart";
 import { focusList } from "@/lib/focus";
 import { newId } from "@/lib/ids";
+import { lastCompleteWeek, review as buildReview } from "@/lib/review";
 import { compareTasks, orderForMove, sortOrderBetween } from "@/lib/order";
 import {
   addDays,
   formatClock,
+  isoWeekKey,
   formatDayLong,
   fromDayKey,
   logicalDayKey,
@@ -256,6 +260,54 @@ export function Dashboard({
     () => (today ? focusList(liveTasks, localComps, today) : []),
     [liveTasks, localComps, today],
   );
+
+  /*
+   * The weekly review.
+   *
+   * It opens on the last week that actually finished, because that is the one
+   * with anything to conclude — a week still running can only be peeked at,
+   * and stepping forward reaches it. `weekOffset` counts weeks back from there.
+   */
+  const [reviewOpen, setReviewOpen] = useState(false);
+  const [weekOffset, setWeekOffset] = useState(0);
+
+  const reviewWeek = useMemo(
+    () => (today ? addDays(lastCompleteWeek(today), weekOffset * 7) : null),
+    [today, weekOffset],
+  );
+
+  const weekReview = useMemo(
+    () =>
+      today && reviewWeek
+        ? buildReview(liveTasks, localComps, liveGoals, reviewWeek, today, dayStartHour)
+        : null,
+    [liveTasks, localComps, liveGoals, reviewWeek, today, dayStartHour],
+  );
+
+  /*
+   * The mark is on the newest *finished* week, not on the current one: a week
+   * still in progress has nothing to conclude, so nagging about it would mean
+   * a dot that never goes away for six days at a time.
+   */
+  const unreadWeek = useMemo(
+    () => (today ? isoWeekKey(lastCompleteWeek(today)) : null),
+    [today],
+  );
+  const unread = unreadWeek !== null && settings.review_seen_week !== unreadWeek;
+
+  function openReview() {
+    setWeekOffset(0);
+    setReviewOpen(true);
+    if (!unread || !unreadWeek) return;
+    startTransition(async () => {
+      try {
+        const res = await markReviewSeen(unreadWeek);
+        if (res.error) setError(res.error);
+      } catch (e) {
+        setError(e instanceof Error ? e.message : "Couldn't save that.");
+      }
+    });
+  }
 
   const goalRows = useMemo(() => {
     if (!today) return [];
@@ -555,6 +607,16 @@ export function Dashboard({
 
   return (
     <>
+      {reviewOpen && weekReview ? (
+        <WeeklyReview
+          review={weekReview}
+          // Nothing sits after the week in progress.
+          canGoForward={!weekReview.current}
+          onStep={(weeks) => setWeekOffset((n) => n + weeks)}
+          onClose={() => setReviewOpen(false)}
+        />
+      ) : null}
+
       {syncing ? (
         <div
           role="status"
@@ -578,6 +640,25 @@ export function Dashboard({
           {today ? formatDayLong(today) : ""}
         </span>
         <div className="ml-auto flex items-center gap-1 sm:ml-3">
+          <button
+            type="button"
+            onClick={openReview}
+            disabled={!weekReview}
+            title="How last week went"
+            className="relative rounded-md px-2 py-1 text-[13px] text-muted-foreground transition-colors hover:bg-[var(--hover)] hover:text-foreground disabled:opacity-40 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+          >
+            Review
+            {/*
+              An unread mark rather than a count: there is only ever one week
+              waiting, and a number would imply a backlog to work through.
+            */}
+            {unread ? (
+              <span
+                aria-label="New week to review"
+                className="absolute right-0.5 top-0.5 size-1.5 rounded-full bg-primary"
+              />
+            ) : null}
+          </button>
           <ThemeToggle />
           <form action="/auth/signout" method="post">
             <button

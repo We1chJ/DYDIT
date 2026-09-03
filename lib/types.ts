@@ -49,12 +49,15 @@ export type Settings = {
   day_start_hour: number;
   /** IANA zone captured from the browser. Kept for date maths, not for a clock. */
   timezone: string | null;
+  /** ISO week of the last review opened, or null if none ever was. */
+  review_seen_week: string | null;
 };
 
 /** Used before a settings row exists, and by the preview harness. */
 export const DEFAULT_SETTINGS: Settings = {
   day_start_hour: 3,
   timezone: null,
+  review_seen_week: null,
 };
 
 export type TabDef = {

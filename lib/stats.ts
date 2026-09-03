@@ -184,6 +184,27 @@ export type GoalStat = {
   dueDone: number;
   /** How many live tasks point at this goal. */
   linked: number;
+  /** Which tasks actually moved it, heaviest first. */
+  contributors: Contributor[];
+};
+
+/**
+ * One task's share of the days a goal moved.
+ *
+ * Measured in the same unit as the headline — days, not ticks — because a
+ * weekly task can only ever tick once a week and would look negligible beside
+ * a daily one. `share` is therefore of the goal's active days, and the shares
+ * across tasks will exceed 1 whenever two of them land on the same day. That
+ * overlap is the point: a goal whose shares barely reach 1 has no redundancy.
+ */
+export type Contributor = {
+  task: Task;
+  /** Active days of the goal this task appeared on. */
+  days: number;
+  /** Of those, the ones where nothing else moved the goal. */
+  soloDays: number;
+  /** days ÷ the goal's active days, so 1 means it was there every time. */
+  share: number;
 };
 
 /**
@@ -218,9 +239,38 @@ export function goalStats(
 
       // Distinct local days, so ticking four tasks on one day is still one day.
       const activeDayKeys = new Set<string>();
+      // …and, per day, which tasks were responsible, so a day carried by one
+      // task alone can be told apart from one where several landed together.
+      const byDay = new Map<string, Set<string>>();
       for (const c of completions) {
-        if (ids.has(c.task_id)) activeDayKeys.add(c.completed_on);
+        if (!ids.has(c.task_id)) continue;
+        activeDayKeys.add(c.completed_on);
+        let onThatDay = byDay.get(c.completed_on);
+        if (!onThatDay) {
+          onThatDay = new Set();
+          byDay.set(c.completed_on, onThatDay);
+        }
+        onThatDay.add(c.task_id);
       }
+
+      const contributors: Contributor[] = linked
+        .map((task) => {
+          let days = 0;
+          let soloDays = 0;
+          for (const onThatDay of byDay.values()) {
+            if (!onThatDay.has(task.id)) continue;
+            days++;
+            if (onThatDay.size === 1) soloDays++;
+          }
+          return {
+            task,
+            days,
+            soloDays,
+            share: activeDayKeys.size === 0 ? 0 : days / activeDayKeys.size,
+          };
+        })
+        // Heaviest first; ties settled by name so the order never wobbles.
+        .sort((a, b) => b.days - a.days || a.task.title.localeCompare(b.task.title));
 
       const createdKey = logicalDayKey(new Date(goal.created_at), dayStartHour);
       // Inclusive, and floored at 1: a goal made today is one day old, not zero.
@@ -254,6 +304,7 @@ export function goalStats(
         dueTotal,
         dueDone,
         linked: linked.length,
+        contributors,
       };
     });
 }

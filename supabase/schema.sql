@@ -176,3 +176,13 @@ where t.id = numbered.id
 
 create index if not exists tasks_user_sort_idx
   on public.tasks (user_id, cadence, sort_order);
+
+-- ---------------------------------------------------------------------------
+-- review_seen_week — the last week whose review was actually opened
+--
+-- Stored per person rather than per browser so that reading the week on the
+-- laptop clears the unread mark on the phone too. Null means never opened,
+-- which is the right starting state: there is a week waiting.
+-- ---------------------------------------------------------------------------
+alter table public.settings
+  add column if not exists review_seen_week text;

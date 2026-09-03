@@ -2,7 +2,7 @@
 
 import { useRef, useState } from "react";
 import { PlusIcon, XIcon } from "lucide-react";
-import type { GoalStat } from "@/lib/stats";
+import type { Contributor, GoalStat } from "@/lib/stats";
 
 type GoalRowsProps = {
   stats: GoalStat[];
@@ -38,6 +38,9 @@ export function GoalRows({
   // Which goal is asking to be confirmed. Inline in the row rather than a
   // dialog, so the goal you are about to drop stays in front of you.
   const [confirmingId, setConfirmingId] = useState<string | null>(null);
+
+  // Which goal's breakdown is showing. Hover only, and one at a time.
+  const [hoveredId, setHoveredId] = useState<string | null>(null);
 
   function commit() {
     const trimmed = value.trim();
@@ -75,9 +78,21 @@ export function GoalRows({
       ) : null}
 
       <div className="mt-3 space-y-3.5">
-        {stats.map(({ goal, activeDays, ageDays, streak, dueDone, dueTotal, linked }, i) => {
+        {stats.map(({ goal, activeDays, ageDays, streak, dueDone, dueTotal, linked, contributors }, i) => {
+          // Shown only once something has moved the goal — before that there is
+          // nothing to apportion. Tasks sitting on zero stay in the list, since
+          // "linked but contributing nothing" is the other half of the answer.
+          const anyMovement = contributors.some((c) => c.days > 0);
           return (
-            <div key={goal.id} className="group">
+            <div
+              key={goal.id}
+              className="group relative"
+              onMouseEnter={() => setHoveredId(goal.id)}
+              onMouseLeave={() => setHoveredId(null)}
+            >
+              {hoveredId === goal.id && anyMovement ? (
+                <Breakdown contributors={contributors} activeDays={activeDays} />
+              ) : null}
               <div className="flex items-baseline gap-2">
                 {/*
                   Positional, and only ever an input shorthand — the number is
@@ -216,6 +231,67 @@ export function GoalRows({
           New goal
         </button>
       )}
+    </div>
+  );
+}
+
+/**
+ * Which tasks actually moved a goal.
+ *
+ * Shares are of the goal's active days, so they do not add up to 100% — two
+ * tasks ticked on the same day are one day for the goal. That is the useful
+ * part: shares that only just reach 100% mean every day rests on a single
+ * task, and the "carries N alone" line names which one.
+ */
+function Breakdown({
+  contributors,
+  activeDays,
+}: {
+  contributors: Contributor[];
+  activeDays: number;
+}) {
+  const solo = contributors[0];
+  return (
+    <div
+      role="tooltip"
+      className="anim-tip pointer-events-none absolute bottom-full left-0 z-30 mb-1 w-[300px] rounded-lg border border-border/50 bg-background p-2.5 shadow-xl"
+    >
+      <div className="grid gap-1">
+        {contributors.map((c) => (
+          <div key={c.task.id} className="flex items-center gap-2 text-[11.5px]">
+            <span
+              className={`min-w-0 flex-1 truncate ${
+                c.days === 0 ? "text-faint" : "text-foreground"
+              }`}
+            >
+              {c.task.title}
+            </span>
+            <span className="tnum shrink-0 text-faint">
+              {c.days} of {activeDays}
+            </span>
+            <span
+              aria-hidden
+              className="h-1 w-12 shrink-0 overflow-hidden rounded-full bg-muted"
+            >
+              <span
+                className="block h-full rounded-full bg-primary"
+                style={{ width: `${Math.round(c.share * 100)}%` }}
+              />
+            </span>
+            <span className="tnum w-8 shrink-0 text-right font-medium text-muted-foreground">
+              {Math.round(c.share * 100)}%
+            </span>
+          </div>
+        ))}
+      </div>
+
+      {solo && solo.soloDays > 0 ? (
+        <p className="mt-1.5 border-t border-border/50 pt-1.5 text-[11px] leading-snug text-faint">
+          <span className="text-muted-foreground">{solo.task.title}</span> was the
+          only thing moving this on {solo.soloDays}{" "}
+          {solo.soloDays === 1 ? "day" : "days"}.
+        </p>
+      ) : null}
     </div>
   );
 }

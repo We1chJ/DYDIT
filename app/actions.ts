@@ -276,3 +276,31 @@ export async function saveDayStart(
   revalidatePath("/");
   return {};
 }
+
+/**
+ * Records that a week's review has been read, which is what clears its mark.
+ *
+ * Kept on the account rather than in the browser so reading it on one machine
+ * settles it everywhere. Only ever moves forward in practice, but nothing here
+ * enforces that — reopening an older week is a legitimate thing to do, and the
+ * mark is about the newest week regardless.
+ */
+export async function markReviewSeen(weekKey: string): Promise<Result> {
+  if (!/^\d{4}-W\d{2}$/.test(weekKey)) {
+    return { error: "That isn't a week." };
+  }
+
+  const { supabase, user } = await requireUser();
+  const { error } = await supabase.from("settings").upsert(
+    {
+      user_id: user.id,
+      review_seen_week: weekKey,
+      updated_at: new Date().toISOString(),
+    },
+    { onConflict: "user_id" },
+  );
+
+  if (error) return { error: error.message };
+  revalidatePath("/");
+  return {};
+}

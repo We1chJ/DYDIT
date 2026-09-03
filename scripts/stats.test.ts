@@ -4,6 +4,7 @@ import {
   longestStreak, perfectDays, taskMinutes, timeOfDay,
 } from "../lib/stats";
 import { focusList } from "../lib/focus";
+import { formatWeekRange, lastCompleteWeek, review, weekStart } from "../lib/review";
 import { compareTasks, orderForMove, sortOrderBetween } from "../lib/order";
 import type { Completion, Goal, Task } from "../lib/types";
 
@@ -320,6 +321,94 @@ eq("the list stays short",
 const goneTask: Task = { ...daily("gone"), archived_at: "2026-08-01T00:00:00" };
 eq("archived tasks are left out", focusList([goneTask], [], sunday).length, 0);
 eq("nothing outstanding yields nothing", focusList([], [], sunday).length, 0);
+
+
+// --- goal contributions -----------------------------------------------------
+console.log("\ngoal contributions");
+{
+  const g = goal("g1", "Master Japanese");
+  const wk = task("wanikani", "daily", "2026-07-01T09:00:00", "g1");
+  const duo = task("duolingo", "daily", "2026-07-01T09:00:00", "g1");
+  // Three days both landed; two more only WaniKani did.
+  const comps = [
+    comp("wanikani", "2026-08-10", "2026-08-10"), comp("duolingo", "2026-08-10", "2026-08-10"),
+    comp("wanikani", "2026-08-11", "2026-08-11"), comp("duolingo", "2026-08-11", "2026-08-11"),
+    comp("wanikani", "2026-08-12", "2026-08-12"), comp("duolingo", "2026-08-12", "2026-08-12"),
+    comp("wanikani", "2026-08-13", "2026-08-13"),
+    comp("wanikani", "2026-08-14", "2026-08-14"),
+  ];
+  const [st] = goalStats([g], [wk, duo], comps, new Date(2026, 7, 16), 3);
+  eq("the goal moved on five days", st.activeDays, 5);
+  eq("heaviest contributor leads", st.contributors.map((c) => c.task.id), ["wanikani", "duolingo"]);
+  eq("WaniKani was there every day", st.contributors[0].days, 5);
+  eq("...so its share is all of them", st.contributors[0].share, 1);
+  eq("Duolingo covered three", st.contributors[1].days, 3);
+  eq("shares are of days, and may exceed 1 together",
+    st.contributors[0].share + st.contributors[1].share > 1, true);
+  // The point of the whole feature: which days would not have happened.
+  eq("WaniKani carried two days alone", st.contributors[0].soloDays, 2);
+  eq("Duolingo carried none alone", st.contributors[1].soloDays, 0);
+  eq("a goal nothing touched has no contributors with days",
+    goalStats([goal("g2", "Idle")], [], [], new Date(2026, 7, 16), 3)[0].contributors, []);
+}
+
+// --- the weekly review ------------------------------------------------------
+// ISO week 33 of 2026 runs Mon Aug 10 – Sun Aug 16.
+console.log("\nweekly review");
+{
+  const d1 = task("d1", "daily", "2026-01-01T09:00:00");
+  const d2 = task("d2", "daily", "2026-01-01T09:00:00");
+  const w1 = task("w1", "weekly", "2026-01-01T09:00:00");
+  const o1 = task("o1", "once", "2026-01-01T09:00:00");
+  const days = ["2026-08-10","2026-08-11","2026-08-12","2026-08-13","2026-08-14","2026-08-15","2026-08-16"];
+  const comps = [
+    ...days.map((k) => comp("d1", k, k)),          // d1 every day
+    comp("d2", "2026-08-10", "2026-08-10"),        // d2 only on the Monday
+    comp("w1", "2026-W33", "2026-08-12"),
+    comp("o1", "once", "2026-08-13"),
+  ];
+  // Reviewed from outside the week, so the whole week counts.
+  const r = review([d1, d2, w1, o1], comps, [], new Date(2026, 7, 12), new Date(2026, 7, 20), 3);
+
+  eq("the week is named", r.weekKey, "2026-W33");
+  eq("Monday to Sunday", [r.from, r.to], ["2026-08-10", "2026-08-16"]);
+  eq("a past week is not current", r.current, false);
+  eq("eight of fourteen daily chances taken", [r.done, r.total], [8, 14]);
+  eq("only the Monday was perfect", r.perfectDays, 1);
+  eq("the weekly task landed", [r.weeklyDone, r.weeklyTotal], [1, 1]);
+  eq("one one-off was ticked", r.onceDone, 1);
+  eq("d2 is the thing that slipped", r.slips.map((s) => s.task.id), ["d2"]);
+  eq("...on six of its seven days", [r.slips[0].missed, r.slips[0].due], [6, 7]);
+
+  // A week still running is only judged as far as it has got.
+  const mid = review([d1, d2, w1, o1], comps, [], new Date(2026, 7, 12), new Date(2026, 7, 12), 3);
+  eq("a running week is flagged", mid.current, true);
+  eq("...and only counts up to today", [mid.done, mid.total], [4, 6]);
+
+  // Goals moved, counted in days rather than ticks.
+  const g = goal("g1", "Japanese");
+  const linked = task("d3", "daily", "2026-01-01T09:00:00", "g1");
+  const gr = review([linked], [comp("d3", "2026-08-10", "2026-08-10"), comp("d3", "2026-08-11", "2026-08-11")],
+    [g], new Date(2026, 7, 12), new Date(2026, 7, 20), 3);
+  eq("the goal moved on two days", gr.goalsMoved.map((m) => [m.goal.id, m.days]), [["g1", 2]]);
+
+  // Untouched: anything done inside the week is not being forgotten.
+  const forgotten = task("cold", "daily", "2026-01-01T09:00:00");
+  const sr = review([d1, forgotten], comps, [], new Date(2026, 7, 12), new Date(2026, 7, 20), 3);
+  eq("only the long-neglected is listed", sr.stale.map((s) => s.task.id), ["cold"]);
+  eq("d1 was done this week, so it is not stale", sr.stale.some((s) => s.task.id === "d1"), false);
+}
+
+console.log("\nweek helpers");
+eq("Monday of the week containing a Wednesday",
+  toDayKey(weekStart(new Date(2026, 7, 12))), "2026-08-10");
+eq("Sunday still belongs to the week that began Monday",
+  toDayKey(weekStart(new Date(2026, 7, 16))), "2026-08-10");
+eq("the last complete week is the one before this",
+  toDayKey(lastCompleteWeek(new Date(2026, 7, 12))), "2026-08-03");
+eq("a week reads as a range", formatWeekRange("2026-08-10", "2026-08-16"), "Aug 10 – Aug 16");
+eq("...and says so across a month boundary",
+  formatWeekRange("2026-08-31", "2026-09-06"), "Aug 31 – Sep 6");
 
 
 console.log(`\n${failures === 0 ? "PASS — all assertions held" : `FAIL — ${failures} assertion(s) failed`}`);
