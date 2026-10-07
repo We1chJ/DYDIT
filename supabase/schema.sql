@@ -4,7 +4,18 @@
 -- NOTE: `create table if not exists` will NOT alter a table that already
 -- exists.  If you ran an earlier version of this file, drop the tables first
 -- and re-run:
---     drop table if exists public.completions, public.tasks, public.goals;
+--     drop table if exists dydit.completions, dydit.tasks, dydit.goals;
+
+-- ---------------------------------------------------------------------------
+-- dydit schema — this app's own corner of a Supabase project shared with
+-- other apps. The schema must also be listed under Dashboard → Settings → API
+-- → Exposed schemas, or the API will not serve it.
+-- ---------------------------------------------------------------------------
+create schema if not exists dydit;
+grant usage on schema dydit to anon, authenticated, service_role;
+alter default privileges in schema dydit grant all on tables to anon, authenticated, service_role;
+alter default privileges in schema dydit grant all on sequences to anon, authenticated, service_role;
+alter default privileges in schema dydit grant all on functions to anon, authenticated, service_role;
 
 -- ---------------------------------------------------------------------------
 -- goals — the long-term things daily and weekly tasks feed into
@@ -13,7 +24,7 @@
 -- tasks that point at it, so "Learn Japanese" advances because you did the Anki
 -- reps, not because anyone ticked the goal.
 -- ---------------------------------------------------------------------------
-create table if not exists public.goals (
+create table if not exists dydit.goals (
   id          uuid primary key default gen_random_uuid(),
   user_id     uuid not null references auth.users on delete cascade,
   title       text not null check (length(trim(title)) between 1 and 200),
@@ -24,7 +35,7 @@ create table if not exists public.goals (
 -- ---------------------------------------------------------------------------
 -- tasks — the templates you edit
 -- ---------------------------------------------------------------------------
-create table if not exists public.tasks (
+create table if not exists dydit.tasks (
   id          uuid primary key default gen_random_uuid(),
   user_id     uuid not null references auth.users on delete cascade,
   title       text not null check (length(trim(title)) between 1 and 500),
@@ -33,7 +44,7 @@ create table if not exists public.tasks (
   cadence     text not null check (cadence in ('daily','weekly','once')),
   -- Optional edge to a long-term goal.  Nulled rather than cascaded, so
   -- dropping a goal never takes its tasks (or their history) with it.
-  goal_id     uuid references public.goals on delete set null,
+  goal_id     uuid references dydit.goals on delete set null,
   archived_at timestamptz,
   created_at  timestamptz not null default now()
 );
@@ -49,10 +60,10 @@ create table if not exists public.tasks (
 -- completed_on is the local calendar day the box was ticked, stored separately
 -- so the heatmap can bucket by day regardless of cadence.
 -- ---------------------------------------------------------------------------
-create table if not exists public.completions (
+create table if not exists dydit.completions (
   id           uuid primary key default gen_random_uuid(),
   user_id      uuid not null references auth.users on delete cascade,
-  task_id      uuid not null references public.tasks on delete cascade,
+  task_id      uuid not null references dydit.tasks on delete cascade,
   period_key   text not null,
   completed_on date not null,
   -- Minutes since local midnight (0-1439), computed in the browser like
@@ -64,35 +75,35 @@ create table if not exists public.completions (
 );
 
 create index if not exists tasks_user_cadence_idx
-  on public.tasks (user_id, cadence, created_at);
+  on dydit.tasks (user_id, cadence, created_at);
 create index if not exists tasks_goal_idx
-  on public.tasks (goal_id);
+  on dydit.tasks (goal_id);
 create index if not exists completions_user_day_idx
-  on public.completions (user_id, completed_on);
+  on dydit.completions (user_id, completed_on);
 
 -- ---------------------------------------------------------------------------
 -- Row Level Security — the only thing standing between accounts.
 -- Without these policies an authenticated user could read every row in the
 -- table, so they are not optional even for a single-user app.
 -- ---------------------------------------------------------------------------
-alter table public.goals       enable row level security;
-alter table public.tasks       enable row level security;
-alter table public.completions enable row level security;
+alter table dydit.goals       enable row level security;
+alter table dydit.tasks       enable row level security;
+alter table dydit.completions enable row level security;
 
-drop policy if exists "own goals" on public.goals;
-create policy "own goals" on public.goals
+drop policy if exists "own goals" on dydit.goals;
+create policy "own goals" on dydit.goals
   for all
   using (auth.uid() = user_id)
   with check (auth.uid() = user_id);
 
-drop policy if exists "own tasks" on public.tasks;
-create policy "own tasks" on public.tasks
+drop policy if exists "own tasks" on dydit.tasks;
+create policy "own tasks" on dydit.tasks
   for all
   using (auth.uid() = user_id)
   with check (auth.uid() = user_id);
 
-drop policy if exists "own completions" on public.completions;
-create policy "own completions" on public.completions
+drop policy if exists "own completions" on dydit.completions;
+create policy "own completions" on dydit.completions
   for all
   using (auth.uid() = user_id)
   with check (auth.uid() = user_id);
@@ -112,7 +123,7 @@ create policy "own completions" on public.completions
 -- anything running on a schedule later can work out which day it is for you
 -- without a browser to ask.
 -- ---------------------------------------------------------------------------
-create table if not exists public.settings (
+create table if not exists dydit.settings (
   user_id        uuid primary key references auth.users on delete cascade,
   day_start_hour smallint not null default 3
                    check (day_start_hour between 0 and 23),
@@ -120,10 +131,10 @@ create table if not exists public.settings (
   updated_at     timestamptz not null default now()
 );
 
-alter table public.settings enable row level security;
+alter table dydit.settings enable row level security;
 
-drop policy if exists "own settings" on public.settings;
-create policy "own settings" on public.settings
+drop policy if exists "own settings" on dydit.settings;
+create policy "own settings" on dydit.settings
   for all
   using (auth.uid() = user_id)
   with check (auth.uid() = user_id);
@@ -135,14 +146,14 @@ create policy "own settings" on public.settings
 -- there, so anything added after the first release has to be repeated here.
 -- Both statements are guarded and safe to run repeatedly.
 -- ---------------------------------------------------------------------------
-alter table public.tasks drop constraint if exists tasks_cadence_check;
-alter table public.tasks add constraint tasks_cadence_check
+alter table dydit.tasks drop constraint if exists tasks_cadence_check;
+alter table dydit.tasks add constraint tasks_cadence_check
   check (cadence in ('daily','weekly','once'));
 
-alter table public.completions
+alter table dydit.completions
   add column if not exists completed_minute smallint;
-alter table public.completions drop constraint if exists completions_completed_minute_check;
-alter table public.completions add constraint completions_completed_minute_check
+alter table dydit.completions drop constraint if exists completions_completed_minute_check;
+alter table dydit.completions add constraint completions_completed_minute_check
   check (completed_minute is null or completed_minute between 0 and 1439);
 
 -- ---------------------------------------------------------------------------
@@ -155,13 +166,13 @@ alter table public.completions add constraint completions_completed_minute_check
 -- what is already in the list. Nulls sort last, so a row that somehow misses
 -- one lands at the bottom of its list instead of silently at the top.
 -- ---------------------------------------------------------------------------
-alter table public.tasks
+alter table dydit.tasks
   add column if not exists sort_order double precision;
 
 -- Number the rows that predate the column, per person and per list, in the
 -- order they were already being shown. Without this a first drag would have no
 -- neighbours to sit between and the whole list would jump.
-update public.tasks t
+update dydit.tasks t
 set sort_order = numbered.rn
 from (
   select id,
@@ -169,13 +180,13 @@ from (
            partition by user_id, cadence
            order by created_at, id
          ) as rn
-  from public.tasks
+  from dydit.tasks
 ) as numbered
 where t.id = numbered.id
   and t.sort_order is null;
 
 create index if not exists tasks_user_sort_idx
-  on public.tasks (user_id, cadence, sort_order);
+  on dydit.tasks (user_id, cadence, sort_order);
 
 -- ---------------------------------------------------------------------------
 -- review_seen_week — the last week whose review was actually opened
@@ -184,5 +195,5 @@ create index if not exists tasks_user_sort_idx
 -- laptop clears the unread mark on the phone too. Null means never opened,
 -- which is the right starting state: there is a week waiting.
 -- ---------------------------------------------------------------------------
-alter table public.settings
+alter table dydit.settings
   add column if not exists review_seen_week text;

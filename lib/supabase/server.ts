@@ -7,6 +7,9 @@ export async function createClient() {
   const cookieStore = await cookies();
 
   return createServerClient(url, key, {
+    // Every DYDIT table lives in its own schema, so other apps can share
+    // this Supabase project without their tables mixing into these.
+    db: { schema: "dydit" },
     cookies: {
       getAll() {
         return cookieStore.getAll();
