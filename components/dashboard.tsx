@@ -19,6 +19,7 @@ import {
   renameGoal,
   markReviewSeen,
   saveDayStart,
+  saveTimezone,
   renameTask,
   setDone,
   setTaskGoal,
@@ -230,6 +231,17 @@ export function Dashboard({
       window.removeEventListener("focus", resync);
     };
   }, [router]);
+
+  /*
+   * Keeps the stored timezone in step with where you are. Claude, ticking
+   * things through the MCP endpoint, has no browser to ask what day it is for
+   * you, so it reads this instead. Fire-and-forget: if it fails, the next visit
+   * tries again, and nothing on this page depends on it.
+   */
+  useEffect(() => {
+    const zone = Intl.DateTimeFormat().resolvedOptions().timeZone;
+    if (zone && zone !== settings.timezone) void saveTimezone(zone);
+  }, [settings.timezone]);
 
   /*
    * Counts user-driven changes. The charts render statically for the first

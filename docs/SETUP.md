@@ -126,6 +126,33 @@ the body with:
 That routes to `/auth/confirm`, which verifies the token directly and works from
 anywhere. Both routes ship, so this is safe to do at any point — or not at all.
 
+### Optional: let Claude edit your list
+
+`/api/mcp/<secret>` is an MCP server, so Claude can list, add, tick, rename,
+re-link and archive tasks and goals from any chat or Claude Code session — the
+same rules as the app, and nothing it can do deletes history.
+
+Add three variables in **Vercel → Settings → Environment Variables**. They are
+server-only: never give them a `NEXT_PUBLIC_` prefix.
+
+| Variable | Value |
+| --- | --- |
+| `DYDIT_MCP_SECRET` | A long random string — `openssl rand -hex 32`. It becomes part of the URL. |
+| `SUPABASE_SECRET_KEY` | **Project Settings → API Keys** → the **secret** key (called **service_role** on older projects). It bypasses RLS, which is why the endpoint filters every query to `DYDIT_OWNER_ID` itself. |
+| `DYDIT_OWNER_ID` | Your user's UUID, from **Authentication → Users**. |
+
+Redeploy, open Dydit once in a browser (it records your timezone, which is how
+the endpoint knows what "today" means for you), then in claude.ai go to
+**Settings → Connectors → Add custom connector** and use:
+
+```
+https://<your-app>.vercel.app/api/mcp/<DYDIT_MCP_SECRET>
+```
+
+The URL is the password — anyone holding it can edit your list. A wrong secret
+gets a 404. To revoke it, change `DYDIT_MCP_SECRET`, redeploy, and re-add the
+connector.
+
 ---
 
 ## How the recurrence works
@@ -218,11 +245,13 @@ app/
   preview/            dev-only design harness with sample data
   auth/confirm/       token_hash verification  (works in any browser)
   auth/callback/      PKCE code exchange       (zero-config fallback)
+  api/mcp/[secret]/   MCP endpoint for Claude  (checks the secret, then lib/mcp.ts)
 proxy.ts              session refresh + route guard
 lib/
   periods.ts          local-time period keys, ISO weeks, clock formatting
   stats.ts            heatmap buckets, streaks, goal counts, time of day — pure
-  supabase/           browser, server, and proxy clients
+  mcp.ts              the tools Claude gets — the app's rules, scoped to one owner
+  supabase/           browser, server, proxy, and owner (secret-key) clients
 components/           dashboard, charts, tabs, goal rows, task rows
 supabase/schema.sql   tables, indexes, RLS
 scripts/stats.test.ts fixture check for the date and streak math

@@ -101,6 +101,41 @@ export function logicalDayKey(d: Date, startHour: number): string {
   return toDayKey(dayStart(d, startHour));
 }
 
+/**
+ * A moment rebuilt so that its local fields read as the wall clock in
+ * `timeZone`.
+ *
+ * Everything in this file works in the runtime's local zone, which in the
+ * browser is wherever you are. Code that runs without a browser — the MCP
+ * endpoint — is on a server whose zone is unrelated (UTC on Vercel), so it
+ * converts "now" into your zone first and then reuses the functions above
+ * unchanged. Throws a RangeError for a zone name Intl does not know.
+ */
+export function wallClockIn(timeZone: string, at: Date = new Date()): Date {
+  const parts = Object.fromEntries(
+    new Intl.DateTimeFormat("en-US", {
+      timeZone,
+      year: "numeric",
+      month: "numeric",
+      day: "numeric",
+      hour: "numeric",
+      minute: "numeric",
+      second: "numeric",
+      hourCycle: "h23",
+    })
+      .formatToParts(at)
+      .map((p) => [p.type, Number(p.value)]),
+  );
+  return new Date(
+    parts.year,
+    parts.month - 1,
+    parts.day,
+    parts.hour,
+    parts.minute,
+    parts.second,
+  );
+}
+
 /** Minutes since local midnight, 0-1439. */
 export function minuteOfDay(d: Date): number {
   return d.getHours() * 60 + d.getMinutes();

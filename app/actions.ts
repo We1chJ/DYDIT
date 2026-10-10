@@ -304,3 +304,32 @@ export async function markReviewSeen(weekKey: string): Promise<Result> {
   revalidatePath("/");
   return {};
 }
+
+/**
+ * Records the browser's timezone, which the dashboard sends whenever the
+ * stored one is missing or different.
+ *
+ * Nothing in the browser needs it — every date there is already local. It is
+ * for code with no browser to ask: the MCP endpoint works out which day it is
+ * for you from this, so it has to follow you when you travel.
+ */
+export async function saveTimezone(timezone: string): Promise<Result> {
+  try {
+    new Intl.DateTimeFormat("en-US", { timeZone: timezone });
+  } catch {
+    return { error: "That isn't a timezone." };
+  }
+
+  const { supabase, user } = await requireUser();
+  const { error } = await supabase.from("settings").upsert(
+    {
+      user_id: user.id,
+      timezone,
+      updated_at: new Date().toISOString(),
+    },
+    { onConflict: "user_id" },
+  );
+
+  if (error) return { error: error.message };
+  return {};
+}

@@ -8,6 +8,8 @@ export async function proxy(request: NextRequest) {
 
 export const config = {
   matcher: [
-    "/((?!_next/static|_next/image|favicon.ico|icon.svg|.*\.(?:svg|png|jpg|jpeg|gif|webp)$).*)",
+    // api/mcp is skipped entirely: it has no session to refresh, checks its own
+    // secret, and would otherwise be redirected to /login.
+    "/((?!_next/static|_next/image|api/mcp|favicon.ico|icon.svg|.*\.(?:svg|png|jpg|jpeg|gif|webp)$).*)",
   ],
 };
