@@ -144,6 +144,9 @@ export function GoalRows({
                     <span className="text-faint">Remove? Tasks are kept</span>
                     <button
                       type="button"
+                      // Keeps focus on Cancel, whose blur would otherwise
+                      // close this prompt before the click lands.
+                      onMouseDown={(e) => e.preventDefault()}
                       onClick={() => {
                         setConfirmingId(null);
                         onRemove(goal.id);
